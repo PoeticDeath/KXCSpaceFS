@@ -8,17 +8,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "simplefs.h"
-
-struct superblock {
-    union {
-        struct simplefs_sb_info info;
-        char padding[SIMPLEFS_BLOCK_SIZE]; /* Padding to match block size */
-    };
-};
-
-_Static_assert(sizeof(struct superblock) == SIMPLEFS_BLOCK_SIZE);
-
 /**
  * DIV_ROUND_UP - round up a division
  * @n: dividend
@@ -28,228 +17,169 @@ _Static_assert(sizeof(struct superblock) == SIMPLEFS_BLOCK_SIZE);
  */
 #define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
 
-static struct superblock *write_superblock(int fd, struct stat *fstats)
+struct superblock_data
 {
-    struct superblock *sb = malloc(sizeof(struct superblock));
-    if (!sb)
-        return NULL;
+    unsigned char sectorsize;
+    unsigned long used_blocks;
+};
 
-    uint32_t nr_blocks = fstats->st_size / SIMPLEFS_BLOCK_SIZE;
-    uint32_t nr_inodes = nr_blocks;
-    uint32_t mod = nr_inodes % SIMPLEFS_INODES_PER_BLOCK;
-    if (mod)
-        nr_inodes += SIMPLEFS_INODES_PER_BLOCK - mod;
-    uint32_t nr_istore_blocks =
-        DIV_ROUND_UP(nr_inodes, SIMPLEFS_INODES_PER_BLOCK);
-    uint32_t nr_ifree_blocks = DIV_ROUND_UP(nr_inodes, SIMPLEFS_BLOCK_SIZE * 8);
-    uint32_t nr_bfree_blocks = DIV_ROUND_UP(nr_blocks, SIMPLEFS_BLOCK_SIZE * 8);
-    uint32_t nr_data_blocks =
-        nr_blocks - nr_istore_blocks - nr_ifree_blocks - nr_bfree_blocks;
-
-    memset(sb, 0, sizeof(struct superblock));
-    sb->info = (struct simplefs_sb_info){
-        .magic = htole32(SIMPLEFS_MAGIC),
-        .nr_blocks = htole32(nr_blocks),
-        .nr_inodes = htole32(nr_inodes),
-        .nr_istore_blocks = htole32(nr_istore_blocks),
-        .nr_ifree_blocks = htole32(nr_ifree_blocks),
-        .nr_bfree_blocks = htole32(nr_bfree_blocks),
-        .nr_free_inodes = htole32(nr_inodes - 1),
-        .nr_free_blocks = htole32(nr_data_blocks - 1),
+struct superblock
+{
+    union
+    {
+        struct superblock_data sbd;
+        char table[512];
     };
+};
 
-    int ret = write(fd, sb, sizeof(struct superblock));
-    if (ret != sizeof(struct superblock)) {
+static struct superblock* write_superblock(int fd, struct stat *fstats, unsigned long long sectorsizewrite, unsigned long long sectorsize)
+{
+    struct superblock* sb = malloc(sectorsize);
+    if (!sb)
+    {
+        return NULL;
+    }
+    memset(sb, 0, sectorsize);
+
+    sb->sbd.sectorsize = sectorsizewrite;
+    sb->sbd.used_blocks = 0;
+    sb->table[5] = 0x0d;
+    sb->table[6] = 0x0d;
+    sb->table[7] = 0x21;
+    sb->table[8] = 0xc0;
+    sb->table[9] = 0x0d;
+    sb->table[10] = 0x21;
+    sb->table[11] = 0xc6;
+    sb->table[12] = 0x0c;
+    sb->table[13] = 0xff;
+    sb->table[14] = 0xff;
+    sb->table[15] = '/';
+    sb->table[16] = 0xff;
+    sb->table[17] = ':';
+    sb->table[18] = 0xff;
+    sb->table[19] = 0xfe;
+    sb->table[92] = 0x00;
+    sb->table[93] = 0x02;
+    sb->table[94] = 0x21;
+    sb->table[95] = 0x02;
+    sb->table[96] = 0x21;
+    sb->table[97] = 0x01;
+    sb->table[98] = 0xc0;
+    sb->table[99] = 0x00;
+    sb->table[100] = 0x00;
+    sb->table[101] = 0x08;
+    sb->table[102] = 0x00;
+    sb->table[103] = 0x00;
+    sb->table[104] = 0x02;
+    sb->table[105] = 0x21;
+    sb->table[106] = 0x02;
+    sb->table[107] = 0x21;
+    sb->table[108] = 0x41;
+    sb->table[109] = 0xed;
+    sb->table[110] = 0x00;
+    sb->table[111] = 0x00;
+    sb->table[112] = 0x20;
+    sb->table[113] = 0x00;
+    sb->table[114] = 0x00;
+    sb->table[115] = 0x02;
+    sb->table[116] = 0x21;
+    sb->table[117] = 0x02;
+    sb->table[118] = 0x21;
+    sb->table[119] = 0x01;
+    sb->table[120] = 0xc0;
+    sb->table[121] = 0x00;
+    sb->table[122] = 0x00;
+    sb->table[123] = 0x08;
+    sb->table[124] = 0x00;
+    sb->table[125] = 0x00;
+    sb->table[126] = 0x00;
+    sb->table[127] = 0x02;
+    sb->table[128] = 0x21;
+    sb->table[129] = 0x02;
+    sb->table[130] = 0x21;
+    sb->table[131] = 0x41;
+    sb->table[132] = 0xed;
+    sb->table[133] = 0x00;
+    sb->table[134] = 0x00;
+    sb->table[135] = 0x20;
+    sb->table[136] = 0x00;
+    sb->table[137] = 0x00;
+    sb->table[138] = 0x02;
+    sb->table[139] = 0x21;
+    sb->table[140] = 0x02;
+    sb->table[141] = 0x21;
+    sb->table[142] = 0x41;
+    sb->table[143] = 0xed;
+    sb->table[144] = 0x00;
+    sb->table[145] = 0x00;
+    sb->table[146] = 0x08;
+    sb->table[147] = 0x00;
+    sb->table[148] = 0x00;
+    sb->table[149] = 0x02;
+    sb->table[150] = 0x21;
+    sb->table[151] = 0x02;
+    sb->table[152] = 0x21;
+    sb->table[153] = 0x01;
+    sb->table[154] = 0xc0;
+    sb->table[155] = 0x00;
+    sb->table[156] = 0x00;
+    sb->table[157] = 0x08;
+    sb->table[158] = 0x00;
+
+    int ret = write(fd, sb, sectorsize);
+    if (ret != sectorsize)
+    {
         free(sb);
         return NULL;
     }
 
-    printf(
-        "Superblock: (%ld)\n"
-        "\tmagic=%#x\n"
-        "\tnr_blocks=%u\n"
-        "\tnr_inodes=%u (istore=%u blocks)\n"
-        "\tnr_ifree_blocks=%u\n"
-        "\tnr_bfree_blocks=%u\n"
-        "\tnr_free_inodes=%u\n"
-        "\tnr_free_blocks=%u\n",
-        sizeof(struct superblock), sb->info.magic, sb->info.nr_blocks,
-        sb->info.nr_inodes, sb->info.nr_istore_blocks, sb->info.nr_ifree_blocks,
-        sb->info.nr_bfree_blocks, sb->info.nr_free_inodes,
-        sb->info.nr_free_blocks);
+    off_t offset = lseek(fd, -sectorsize, SEEK_END);
+    if (!offset)
+    {
+        free(sb);
+        return NULL;
+    }
+
+    char perms_and_label[512] = {0};
+    perms_and_label[0] = 'O';
+    perms_and_label[1] = ':';
+    perms_and_label[2] = 'W';
+    perms_and_label[3] = 'D';
+    perms_and_label[4] = 'G';
+    perms_and_label[5] = ':';
+    perms_and_label[6] = 'W';
+    perms_and_label[7] = 'D';
+    perms_and_label[8] = 'D';
+    perms_and_label[9] = ':';
+    perms_and_label[10] = 'P';
+    perms_and_label[11] = '(';
+    perms_and_label[12] = 'A';
+    perms_and_label[13] = ';';
+    perms_and_label[14] = ';';
+    perms_and_label[15] = 'F';
+    perms_and_label[16] = 'A';
+    perms_and_label[17] = ';';
+    perms_and_label[18] = ';';
+    perms_and_label[19] = ';';
+    perms_and_label[20] = 'W';
+    perms_and_label[21] = 'D';
+    perms_and_label[22] = ')';
+    perms_and_label[23] = 'S';
+    perms_and_label[24] = 'p';
+    perms_and_label[25] = 'a';
+    perms_and_label[26] = 'c';
+    perms_and_label[27] = 'e';
+    perms_and_label[28] = 'F';
+    perms_and_label[29] = 'S';
+
+    ret = write(fd, perms_and_label, 512);
+    if (ret != 512)
+    {
+        free(sb);
+        return NULL;
+    }
 
     return sb;
-}
-
-static int write_inode_store(int fd, struct superblock *sb)
-{
-    /* Allocate a block of zeroed-out memory space for the inode storage. */
-    char *block = malloc(SIMPLEFS_BLOCK_SIZE);
-    if (!block)
-        return -1;
-
-    memset(block, 0, SIMPLEFS_BLOCK_SIZE);
-
-    /* Root inode (inode 1) */
-    struct simplefs_inode *inode = (struct simplefs_inode *) block;
-    uint32_t first_data_block = 1 + le32toh(sb->info.nr_bfree_blocks) +
-                                le32toh(sb->info.nr_ifree_blocks) +
-                                le32toh(sb->info.nr_istore_blocks);
-
-    /* Designate inode 1 as the root inode.
-     * When the system uses the glibc, the readdir function will skip over
-     * inode 0. Additionally, the VFS layer avoids using inode 0 to prevent
-     * potential issues.
-     */
-    inode += 1;
-    inode->i_mode = htole32(S_IFDIR | S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR |
-                            S_IWGRP | S_IXUSR | S_IXGRP | S_IXOTH);
-    inode->i_uid = 0;
-    inode->i_gid = 0;
-    inode->i_size = htole32(SIMPLEFS_BLOCK_SIZE);
-    inode->i_ctime = inode->i_atime = inode->i_mtime = htole32(0);
-    inode->i_blocks = htole32(1);
-    inode->i_nlink = htole32(2);
-    inode->ei_block = htole32(first_data_block);
-
-    int ret = write(fd, block, SIMPLEFS_BLOCK_SIZE);
-    if (ret != SIMPLEFS_BLOCK_SIZE) {
-        ret = -1;
-        goto end;
-    }
-
-    /* Clear all memory blocks allocated for inode storage. */
-    memset(block, 0, SIMPLEFS_BLOCK_SIZE);
-    uint32_t i;
-    for (i = 1; i < sb->info.nr_istore_blocks; i++) {
-        ret = write(fd, block, SIMPLEFS_BLOCK_SIZE);
-        if (ret != SIMPLEFS_BLOCK_SIZE) {
-            ret = -1;
-            goto end;
-        }
-    }
-    ret = 0;
-
-    printf(
-        "Inode store: wrote %d blocks\n"
-        "\tinode size = %ld B\n",
-        i, sizeof(struct simplefs_inode));
-
-end:
-    free(block);
-    return ret;
-}
-
-static int write_ifree_blocks(int fd, struct superblock *sb)
-{
-    char *block = malloc(SIMPLEFS_BLOCK_SIZE);
-    if (!block)
-        return -1;
-
-    uint64_t *ifree = (uint64_t *) block;
-
-    /* Set all bits to 1 */
-    memset(ifree, 0xff, SIMPLEFS_BLOCK_SIZE);
-
-    /* The initial ifree block holds the first inode marked as in-use. */
-    ifree[0] = htole64(0xfffffffffffffffc);
-    int ret = write(fd, ifree, SIMPLEFS_BLOCK_SIZE);
-    if (ret != SIMPLEFS_BLOCK_SIZE) {
-        ret = -1;
-        goto end;
-    }
-
-    /* All free blocks in the inode bitmap except the one containing the first
-     * two inodes.
-     */
-    ifree[0] = 0xffffffffffffffff;
-    uint32_t i;
-    for (i = 1; i < le32toh(sb->info.nr_ifree_blocks); i++) {
-        ret = write(fd, ifree, SIMPLEFS_BLOCK_SIZE);
-        if (ret != SIMPLEFS_BLOCK_SIZE) {
-            ret = -1;
-            goto end;
-        }
-    }
-    ret = 0;
-
-    printf("Ifree blocks: wrote %d blocks\n", i);
-
-end:
-    free(block);
-
-    return ret;
-}
-
-static int write_bfree_blocks(int fd, struct superblock *sb)
-{
-    uint32_t nr_used = le32toh(sb->info.nr_istore_blocks) +
-                       le32toh(sb->info.nr_ifree_blocks) +
-                       le32toh(sb->info.nr_bfree_blocks) + 2;
-
-    char *block = malloc(SIMPLEFS_BLOCK_SIZE);
-    if (!block)
-        return -1;
-    uint64_t *bfree = (uint64_t *) block;
-
-    /* The first blocks refer to the superblock (metadata about the fs), inode
-     * store (where inode data is stored), ifree (list of free inodes), bfree
-     * (list of free data blocks), and one data block marked as used.
-     */
-    memset(bfree, 0xff, SIMPLEFS_BLOCK_SIZE);
-    uint32_t i = 0;
-    while (nr_used) {
-        uint64_t line = 0xffffffffffffffff;
-        for (uint64_t mask = 0x1; mask; mask <<= 1) {
-            line &= ~mask;
-            nr_used--;
-            if (!nr_used)
-                break;
-        }
-        bfree[i] = htole64(line);
-        i++;
-    }
-    int ret = write(fd, bfree, SIMPLEFS_BLOCK_SIZE);
-    if (ret != SIMPLEFS_BLOCK_SIZE) {
-        ret = -1;
-        goto end;
-    }
-
-    /* other blocks */
-    memset(bfree, 0xff, SIMPLEFS_BLOCK_SIZE);
-    for (i = 1; i < le32toh(sb->info.nr_bfree_blocks); i++) {
-        ret = write(fd, bfree, SIMPLEFS_BLOCK_SIZE);
-        if (ret != SIMPLEFS_BLOCK_SIZE) {
-            ret = -1;
-            goto end;
-        }
-    }
-    ret = 0;
-
-    printf("Bfree blocks: wrote %d blocks\n", i);
-end:
-    free(block);
-
-    return ret;
-}
-
-static int write_data_blocks(int fd, struct superblock *sb)
-{
-    char *buffer = calloc(1, SIMPLEFS_BLOCK_SIZE);
-    if (!buffer) {
-        perror("Failed to allocate memory");
-        return -1;
-    }
-
-    ssize_t ret = write(fd, buffer, SIMPLEFS_BLOCK_SIZE);
-    if (ret != SIMPLEFS_BLOCK_SIZE) {
-        perror("Failed to write data block");
-        free(buffer);
-        return -1;
-    }
-
-    free(buffer);
-    return 0;
 }
 
 int main(int argc, char **argv)
@@ -314,55 +244,24 @@ int main(int argc, char **argv)
 
     /* Verify if the file system image has sufficient size. */
     long int min_size = 2 * sectorsize;
-    if (stat_buf.st_size < min_size) {
-        fprintf(stderr, "File is not large enough (size=%ld, min size=%ld)\n",
-                stat_buf.st_size, min_size);
+    if (stat_buf.st_size < min_size)
+    {
+        fprintf(stderr, "File is not large enough (size=%ld, min size=%ld)\n", stat_buf.st_size, min_size);
         ret = EXIT_FAILURE;
         goto fclose;
     }
 
     /* Write superblock (block 0) */
-    struct superblock *sb = write_superblock(fd, &stat_buf);
-    if (!sb) {
+    struct superblock *sb = write_superblock(fd, &stat_buf, i, sectorsize);
+    if (!sb)
+    {
         perror("write_superblock():");
         ret = EXIT_FAILURE;
         goto fclose;
     }
 
-    /* Write inode store blocks (from block 1) */
-    ret = write_inode_store(fd, sb);
-    if (ret) {
-        perror("write_inode_store():");
-        ret = EXIT_FAILURE;
-        goto free_sb;
-    }
-
-    /* Write inode free bitmap blocks */
-    ret = write_ifree_blocks(fd, sb);
-    if (ret) {
-        perror("write_ifree_blocks()");
-        ret = EXIT_FAILURE;
-        goto free_sb;
-    }
-
-    /* Write block free bitmap blocks */
-    ret = write_bfree_blocks(fd, sb);
-    if (ret) {
-        perror("write_bfree_blocks()");
-        ret = EXIT_FAILURE;
-        goto free_sb;
-    }
-
-    /* clear a root index block */
-    ret = write_data_blocks(fd, sb);
-    if (ret) {
-        perror("write_data_blocks():");
-        ret = EXIT_FAILURE;
-        goto free_sb;
-    }
-
-free_sb:
     free(sb);
+
 fclose:
     close(fd);
 

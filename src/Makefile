@@ -3,7 +3,7 @@ simplefs-objs := fs.o super.o inode.o file.o dir.o extent.o
 
 KDIR ?= /lib/modules/$(shell uname -r)/build
 
-MKFS = build/mkfs.simplefs
+MKFS = build/mkfs.kxcspacefs
 
 all: $(MKFS)
 	make -C $(KDIR) M=$(PWD)/src MO=$(PWD)/build modules
