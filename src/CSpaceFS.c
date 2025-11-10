@@ -25,13 +25,13 @@ void init_maps()
 	static const char charmap[] = "0123456789-,.; ";
 	unsigned p = 0;
 	unsigned c;
-	emap = ExAllocatePoolWithTag(NonPagedPoolNx, 65536 * sizeof(unsigned), ALLOC_TAG);
+	emap = kzalloc(65536 * sizeof(unsigned), GFP_KERNEL);
 	if (!emap)
 	{
 		ERR("out of memory\n");
 		return;
 	}
-	dmap = ExAllocatePoolWithTag(NonPagedPoolNx, 256 * sizeof(unsigned), ALLOC_TAG);
+	dmap = kzalloc(256 * sizeof(unsigned), GFP_KERNEL);
 	if (!dmap)
 	{
 		ERR("out of memory\n");
@@ -55,23 +55,23 @@ char* encode(char* str, unsigned long long len)
 	if (len % 2)
 	{
 		len++;
-		alc = ExAllocatePoolWithTag(NonPagedPoolNx, len, ALLOC_TAG);
+		alc = kzalloc(len, GFP_KERNEL);
 		if (!alc)
 		{
 			ERR("out of memory\n");
 			return NULL;
 		}
-		RtlCopyMemory(alc, str, len - 1);
+		memcpy(alc, str, len - 1);
 		alc[len - 1] = 32;
 		alc[len - 2] = 46;
 	}
-	char* bytes = ExAllocatePoolWithTag(NonPagedPoolNx, len / 2 + 1, ALLOC_TAG);
+	char* bytes = kzalloc(len / 2 + 1, GFP_KERNEL);
 	if (!bytes)
 	{
 		ERR("out of memory\n");
 		if (alc)
 		{
-			ExFreePool(alc);
+			zfree(alc);
 		}
 		return NULL;
 	}
@@ -81,7 +81,7 @@ char* encode(char* str, unsigned long long len)
 		{
 			bytes[i / 2] = emap[alc[i] << 8 | alc[i + 1]];
 		}
-		ExFreePool(alc);
+		zfree(alc);
 	}
 	else
 	{
@@ -96,7 +96,7 @@ char* encode(char* str, unsigned long long len)
 
 char* decode(char* bytes, unsigned long long len)
 {
-	char* str = ExAllocatePoolWithTag(NonPagedPoolNx, (len + 1) * 2, ALLOC_TAG);
+	char* str = kzalloc((len + 1) * 2, GFP_KERNEL);
 	if (!str)
 	{
 		ERR("out of memory\n");
@@ -217,14 +217,14 @@ unsigned long long chtime(unsigned long long filenameindex, unsigned long long t
 	if (!(ch % 2))
 	{
 		char tim[8] = {0};
-		RtlCopyMemory(tim, KMCSFS.table + KMCSFS.filenamesend + 2 + filenameindex * 24 + o, 8);
+		memcpy(tim, KMCSFS.table + KMCSFS.filenamesend + 2 + filenameindex * 24 + o, 8);
 		char ti[8] = {0};
 		for (unsigned i = 0; i < 8; i++)
 		{
 			ti[i] = tim[7 - i];
 		}
 		double t;
-		RtlCopyMemory(&t, ti, 8);
+		memcpy(&t, ti, 8);
 		unsigned long long rtime = t * 10000000 + 116444736000000000;
 		if (rtime > 116444736000000000)
 		{
@@ -244,13 +244,13 @@ unsigned long long chtime(unsigned long long filenameindex, unsigned long long t
 	{
 		double t = (long long)(time - 116444736000000000) / 10000000.0;
 		char ti[8] = {0};
-		RtlCopyMemory(ti, &t, 8);
+		memcpy(ti, &t, 8);
 		char tim[8] = {0};
 		for (unsigned i = 0; i < 8; i++)
 		{
 			tim[i] = ti[7 - i];
 		}
-		RtlCopyMemory(KMCSFS.table + KMCSFS.filenamesend + 2 + filenameindex * 24 + o, tim, 8);
+		memcpy(KMCSFS.table + KMCSFS.filenamesend + 2 + filenameindex * 24 + o, tim, 8);
 		return 0;
 	}
 }
@@ -432,13 +432,13 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 	}
 
 	bool locked = false;
-	uint8_t* buf = ExAllocatePoolWithTag(fcb->pool_type, sector_align(length, fcb->Vcb->vde->pdode->KMCSFS.sectorsize), ALLOC_TAG);
+	uint8_t* buf = kzalloc(sector_align(length, fcb->Vcb->vde->pdode->KMCSFS.sectorsize), GFP_KERNEL);
 	if (!buf)
 	{
 		if (sector_align(length, fcb->Vcb->vde->pdode->KMCSFS.sectorsize) <= fcb->Vcb->vde->pdode->KMCSFS.sectorsize)
 		{
 			locked = true;
-			ExAcquireResourceExclusiveLite(fcb->Vcb->vde->pdode->KMCSFS.readbuflock, true);
+			//ExAcquireResourceExclusiveLite(fcb->Vcb->vde->pdode->KMCSFS.readbuflock, true);
 			buf = fcb->Vcb->vde->pdode->KMCSFS.readbuf;
 		}
 		else
@@ -474,7 +474,7 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 							if (init)
 							{
 								sync_read_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - (int3 + o) * fcb->Vcb->vde->pdode->KMCSFS.sectorsize + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize) - (start % 512), min(sector_align(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize) - (start % 512), true);
-								RtlCopyMemory(data, buf + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length));
+								memcpy(data, buf + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length));
 								*bytes_read += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
 								start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
 								init = false;
@@ -482,7 +482,7 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 							else
 							{
 								sync_read_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - (int3 + o) * fcb->Vcb->vde->pdode->KMCSFS.sectorsize, fcb->Vcb->vde->pdode->KMCSFS.sectorsize, buf, true);
-								RtlCopyMemory(data + *bytes_read, buf, min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read));
+								memcpy(data + *bytes_read, buf, min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read));
 								start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read);
 								*bytes_read += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read);
 							}
@@ -498,7 +498,7 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 						if (init)
 						{
 							sync_read_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - int0 * fcb->Vcb->vde->pdode->KMCSFS.sectorsize + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize) - (start % 512), min(sector_align(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize) - (start % 512), true);
-							RtlCopyMemory(data, buf + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length));
+							memcpy(data, buf + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length));
 							*bytes_read += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
 							start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
 							init = false;
@@ -506,7 +506,7 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 						else
 						{
 							sync_read_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - int0 * fcb->Vcb->vde->pdode->KMCSFS.sectorsize, fcb->Vcb->vde->pdode->KMCSFS.sectorsize, buf, true);
-							RtlCopyMemory(data + *bytes_read, buf, min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read));
+							memcpy(data + *bytes_read, buf, min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read));
 							start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read);
 							*bytes_read += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read);
 						}
@@ -521,14 +521,14 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 						sync_read_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - int0 * fcb->Vcb->vde->pdode->KMCSFS.sectorsize + int1 - int1 % 512, sector_align(int2 - int1 + int1 % 512, 512), buf + int1 - int1 % 512, true);
 						if (init)
 						{
-							RtlCopyMemory(data, buf + int1 + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(int2 - int1, length));
+							memcpy(data, buf + int1 + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(int2 - int1, length));
 							start += min(int2 - int1, length);
 							*bytes_read += min(int2 - int1, length);
 							init = false;
 						}
 						else
 						{
-							RtlCopyMemory(data + *bytes_read, buf + int1, min(int2 - int1, length - *bytes_read));
+							memcpy(data + *bytes_read, buf + int1, min(int2 - int1, length - *bytes_read));
 							start += min(int2 - int1, length - *bytes_read);
 							*bytes_read += min(int2 - int1, length - *bytes_read);
 						}
@@ -540,11 +540,11 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 			{
 				if (locked)
 				{
-					ExReleaseResourceLite(fcb->Vcb->vde->pdode->KMCSFS.readbuflock);
+					//ExReleaseResourceLite(fcb->Vcb->vde->pdode->KMCSFS.readbuflock);
 				}
 				else
 				{
-					ExFreePool(buf);
+					kfree(buf);
 				}
 				return STATUS_SUCCESS;
 			}
@@ -603,11 +603,11 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 	}
 	if (locked)
 	{
-		ExReleaseResourceLite(fcb->Vcb->vde->pdode->KMCSFS.readbuflock);
+		//ExReleaseResourceLite(fcb->Vcb->vde->pdode->KMCSFS.readbuflock);
 	}
 	else
 	{
-		ExFreePool(buf);
+		kfree(buf);
 	}
 	return STATUS_SUCCESS;
 }
@@ -875,14 +875,14 @@ NTSTATUS create_file(PIRP Irp, device_extension* Vcb, PFILE_OBJECT FileObject, U
 		return STATUS_DISK_FULL;
 	}
 
-	char* newtablestr = ExAllocatePoolWithTag(NonPagedPoolNx, Vcb->vde->pdode->KMCSFS.tablestrlen + 2, ALLOC_TAG);
+	char* newtablestr = kzalloc(Vcb->vde->pdode->KMCSFS.tablestrlen + 2, GFP_KERNEL);
 	if (!newtablestr)
 	{
 		ERR("out of memory\n");
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	RtlCopyMemory(newtablestr, Vcb->vde->pdode->KMCSFS.tablestr, Vcb->vde->pdode->KMCSFS.tablestrlen);
+	memcpy(newtablestr, Vcb->vde->pdode->KMCSFS.tablestr, Vcb->vde->pdode->KMCSFS.tablestrlen);
 	if (newtablestr[Vcb->vde->pdode->KMCSFS.tablestrlen - 1] == 32)
 	{
 		newtablestr[Vcb->vde->pdode->KMCSFS.tablestrlen - 1] = 46;
@@ -896,25 +896,25 @@ NTSTATUS create_file(PIRP Irp, device_extension* Vcb, PFILE_OBJECT FileObject, U
 		Vcb->vde->pdode->KMCSFS.tablestrlen++;
 	}
 
-	char* newtable = ExAllocatePoolWithTag(NonPagedPoolNx, 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (Vcb->vde->pdode->KMCSFS.filecount + 1), ALLOC_TAG);
+	char* newtable = kzalloc(5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (Vcb->vde->pdode->KMCSFS.filecount + 1), GFP_KERNEL);
 	if (!newtable)
 	{
 		ERR("out of memory\n");
-		ExFreePool(newtablestr);
+		kfree(newtablestr);
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-	RtlZeroMemory(newtable, 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (Vcb->vde->pdode->KMCSFS.filecount + 1));
+	memset(newtable, 0, 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (Vcb->vde->pdode->KMCSFS.filecount + 1));
 
 	char* newtablestren = encode(newtablestr, Vcb->vde->pdode->KMCSFS.tablestrlen);
 	if (!newtablestren)
 	{
 		ERR("out of memory\n");
-		ExFreePool(newtablestr);
-		ExFreePool(newtable);
+		kfree(newtablestr);
+		kfree(newtable);
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	ExFreePool(Vcb->vde->pdode->KMCSFS.tablestr);
+	kfree(Vcb->vde->pdode->KMCSFS.tablestr);
 	Vcb->vde->pdode->KMCSFS.tablestr = newtablestr;
 
 	newtable[0] = Vcb->vde->pdode->KMCSFS.table[0];
@@ -927,10 +927,10 @@ NTSTATUS create_file(PIRP Irp, device_extension* Vcb, PFILE_OBJECT FileObject, U
 	Vcb->vde->pdode->KMCSFS.extratablesize = sector_align(extratablesize, Vcb->vde->pdode->KMCSFS.sectorsize);
 	Vcb->vde->pdode->KMCSFS.tablesize = 1 + tablesize;
 
-	RtlCopyMemory(newtable + 5, newtablestren, (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2);
-	ExFreePool(newtablestren);
+	memcpy(newtable + 5, newtablestren, (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2);
+	kfree(newtablestren);
 
-	RtlCopyMemory(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2, Vcb->vde->pdode->KMCSFS.table + Vcb->vde->pdode->KMCSFS.tableend, Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend);
+	memcpy(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2, Vcb->vde->pdode->KMCSFS.table + Vcb->vde->pdode->KMCSFS.tableend, Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend);
 
 	newtable[5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend] = 255;
 	for (unsigned long long i = 0; i < fn.Length / sizeof(WCHAR); i++)
@@ -940,8 +940,8 @@ NTSTATUS create_file(PIRP Irp, device_extension* Vcb, PFILE_OBJECT FileObject, U
 	newtable[5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR)] = 255;
 	newtable[5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 1] = 254;
 
-	RtlCopyMemory(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2, Vcb->vde->pdode->KMCSFS.table + Vcb->vde->pdode->KMCSFS.filenamesend + 2, 24 * Vcb->vde->pdode->KMCSFS.filecount);
-	RtlCopyMemory(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (Vcb->vde->pdode->KMCSFS.filecount + 1), Vcb->vde->pdode->KMCSFS.table + Vcb->vde->pdode->KMCSFS.filenamesend + 2 + 24 * Vcb->vde->pdode->KMCSFS.filecount, 11 * Vcb->vde->pdode->KMCSFS.filecount);
+	memcpy(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2, Vcb->vde->pdode->KMCSFS.table + Vcb->vde->pdode->KMCSFS.filenamesend + 2, 24 * Vcb->vde->pdode->KMCSFS.filecount);
+	memcpy(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (Vcb->vde->pdode->KMCSFS.filecount + 1), Vcb->vde->pdode->KMCSFS.table + Vcb->vde->pdode->KMCSFS.filenamesend + 2 + 24 * Vcb->vde->pdode->KMCSFS.filecount, 11 * Vcb->vde->pdode->KMCSFS.filecount);
 
 	char guidmodes[11] = {0};
 	unsigned long guid = 545;
@@ -958,9 +958,9 @@ NTSTATUS create_file(PIRP Irp, device_extension* Vcb, PFILE_OBJECT FileObject, U
 	guidmodes[8] = (winattrs >> 16) & 0xff;
 	guidmodes[9] = (winattrs >> 8) & 0xff;
 	guidmodes[10] = winattrs & 0xff;
-	RtlCopyMemory(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (Vcb->vde->pdode->KMCSFS.filecount + 1) + 11 * Vcb->vde->pdode->KMCSFS.filecount, guidmodes, 11);
+	memcpy(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (Vcb->vde->pdode->KMCSFS.filecount + 1) + 11 * Vcb->vde->pdode->KMCSFS.filecount, guidmodes, 11);
 
-	ExFreePool(Vcb->vde->pdode->KMCSFS.table);
+	kfree(Vcb->vde->pdode->KMCSFS.table);
 	Vcb->vde->pdode->KMCSFS.table = newtable;
 
 	AddDictEntry(&Vcb->vde->pdode->KMCSFS.dict, fn.Buffer, Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1, fn.Length / sizeof(WCHAR), &Vcb->vde->pdode->KMCSFS.CurDictSize, &Vcb->vde->pdode->KMCSFS.DictSize, Vcb->vde->pdode->KMCSFS.filecount, false);
@@ -1037,8 +1037,8 @@ dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, u
 									char num0[21] = {0};
 									sprintf(num0, "%llu", int3);
 									unsigned num0len = strlen(num0);
-									RtlCopyMemory(KMCSFS->tablestr + offset + num0len, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i + num0len);
-									RtlZeroMemory(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset + num0len, i - offset - num0len);
+									memcpy(KMCSFS->tablestr + offset + num0len, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i + num0len);
+									memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset + num0len, 0, i - offset - num0len);
 									KMCSFS->tablestrlen -= i - offset - num0len;
 									i = offset + num0len;
 								}
@@ -1050,17 +1050,17 @@ dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, u
 									char num1[21] = {0};
 									sprintf(num1, "%llu", int3 + o - 1);
 									unsigned num1len = strlen(num1);
-									RtlCopyMemory(KMCSFS->tablestr + offset + num0len + 1, num1, num1len);
-									RtlCopyMemory(KMCSFS->tablestr + offset + num0len + 1 + num1len, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i + num0len + 1 + num1len);
-									RtlZeroMemory(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset + num0len + 1 + num1len, i - offset - num0len - 1 - num1len);
+									memcpy(KMCSFS->tablestr + offset + num0len + 1, num1, num1len);
+									memcpy(KMCSFS->tablestr + offset + num0len + 1 + num1len, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i + num0len + 1 + num1len);
+									memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset + num0len + 1 + num1len, 0, i - offset - num0len - 1 - num1len);
 									KMCSFS->tablestrlen -= i - offset - num0len - 1 - num1len;
 									i = offset + num0len + 1 + num1len;
 								}
 							}
 							else
 							{
-								RtlCopyMemory(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
-								RtlZeroMemory(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, i - offset);
+								memcpy(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
+								memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, 0, i - offset);
 								KMCSFS->tablestrlen -= i - offset;
 								i = offset;
 							}
@@ -1076,8 +1076,8 @@ dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, u
 						filesize += KMCSFS->sectorsize;
 						if (filesize > newsize)
 						{
-							RtlCopyMemory(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
-							RtlZeroMemory(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, i - offset);
+							memcpy(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
+							memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, 0, i - offset);
 							KMCSFS->tablestrlen -= i - offset;
 							i = offset;
 						}
@@ -1092,8 +1092,8 @@ dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, u
 						filesize += int2 - int1;
 						if (filesize > newsize)
 						{
-							RtlCopyMemory(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
-							RtlZeroMemory(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, i - offset);
+							memcpy(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
+							memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, 0, i - offset);
 							KMCSFS->tablestrlen -= i - offset;
 							i = offset;
 						}
@@ -1167,13 +1167,13 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 {
 	if (size)
 	{
-		unsigned long* used_bytes = ExAllocatePoolWithTag(NonPagedPoolNx, (KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long), ALLOC_TAG);
+		unsigned long* used_bytes = kzalloc((KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long), GFP_KERNEL);
 		if (!used_bytes)
 		{
 			ERR("out of memory\n");
 			return false;
 		}
-		RtlZeroMemory(used_bytes, (KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long));
+		memset(used_bytes, 0, (KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long));
 		unsigned long long endsector = 0;
 		unsigned long long endoffset = 0;
 		unsigned long long endlength = 0;
@@ -1309,11 +1309,11 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 		{
 			if (cursize % KMCSFS->sectorsize)
 			{ // Last block was part sector
-				tempdata = ExAllocatePoolWithTag(NonPagedPoolNx, endrlength, ALLOC_TAG);
+				tempdata = kzalloc(endrlength, GFP_KERNEL);
 				if (!tempdata)
 				{
 					ERR("out of memory\n");
-					ExFreePool(used_bytes);
+					kfree(used_bytes);
 					return false;
 				}
 				sync_read_phys(FileObject->DeviceObject, FileObject, KMCSFS->size - endsector * KMCSFS->sectorsize - KMCSFS->sectorsize + endoffset - endoffset % 512, endrlength, tempdata, true);
@@ -1343,21 +1343,21 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 					{
 						if (cursize)
 						{
-							char* newtable = ExAllocatePoolWithTag(NonPagedPoolNx, KMCSFS->tablestrlen + 22, ALLOC_TAG);
+							char* newtable = kzalloc(KMCSFS->tablestrlen + 22, GFP_KERNEL);
 							if (!newtable)
 							{
 								ERR("out of memory\n");
-								ExFreePool(used_bytes);
+								kfree(used_bytes);
 								return false;
 							}
-							RtlCopyMemory(newtable, KMCSFS->tablestr, loc);
+							memcpy(newtable, KMCSFS->tablestr, loc);
 							newtable[loc] = *",";
 							char num[21] = {0};
 							sprintf(num, "%llu", cursector);
 							unsigned numlen = strlen(num);
-							RtlCopyMemory(newtable + loc + 1, num, numlen);
-							RtlCopyMemory(newtable + loc + numlen + 1, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-							ExFreePool(KMCSFS->tablestr);
+							memcpy(newtable + loc + 1, num, numlen);
+							memcpy(newtable + loc + numlen + 1, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+							kfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += numlen + 1;
 							loc += numlen + 1;
@@ -1368,20 +1368,20 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 						}
 						else
 						{
-							char* newtable = ExAllocatePoolWithTag(NonPagedPoolNx, KMCSFS->tablestrlen + 21, ALLOC_TAG);
+							char* newtable = kzalloc(KMCSFS->tablestrlen + 21, GFP_KERNEL);
 							if (!newtable)
 							{
 								ERR("out of memory\n");
-								ExFreePool(used_bytes);
+								kfree(used_bytes);
 								return false;
 							}
-							RtlCopyMemory(newtable, KMCSFS->tablestr, loc);
+							memcpy(newtable, KMCSFS->tablestr, loc);
 							char num[21] = {0};
 							sprintf(num, "%llu", cursector);
 							unsigned numlen = strlen(num);
-							RtlCopyMemory(newtable + loc, num, numlen);
-							RtlCopyMemory(newtable + loc + numlen, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-							ExFreePool(KMCSFS->tablestr);
+							memcpy(newtable + loc, num, numlen);
+							memcpy(newtable + loc + numlen, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+							kfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += numlen;
 							loc += numlen;
@@ -1405,28 +1405,28 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 					{
 						if (cursize)
 						{
-							char* newtable = ExAllocatePoolWithTag(NonPagedPoolNx, KMCSFS->tablestrlen + 64, ALLOC_TAG);
+							char* newtable = kzalloc(KMCSFS->tablestrlen + 64, GFP_KERNEL);
 							if (!newtable)
 							{
 								ERR("out of memory\n");
-								ExFreePool(used_bytes);
+								kfree(used_bytes);
 								return false;
 							}
-							RtlCopyMemory(newtable, KMCSFS->tablestr, loc);
+							memcpy(newtable, KMCSFS->tablestr, loc);
 							newtable[loc] = *",";
 							char num1[21] = {0};
 							sprintf(num1, "%llu", cursector);
 							unsigned num1len = strlen(num1);
-							RtlCopyMemory(newtable + loc + 1, num1, num1len);
+							memcpy(newtable + loc + 1, num1, num1len);
 							newtable[loc + 1 + num1len] = *";";
 							newtable[loc + 1 + num1len + 1] = *"0";
 							newtable[loc + 1 + num1len + 2] = *";";
 							char num3[21] = {0};
 							sprintf(num3, "%llu", size % KMCSFS->sectorsize);
 							unsigned num3len = strlen(num3);
-							RtlCopyMemory(newtable + loc + 1 + num1len + 3, num3, num3len);
-							RtlCopyMemory(newtable + loc + 1 + num1len + 3 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-							ExFreePool(KMCSFS->tablestr);
+							memcpy(newtable + loc + 1 + num1len + 3, num3, num3len);
+							memcpy(newtable + loc + 1 + num1len + 3 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+							kfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += num1len + num3len + 4;
 							loc += num1len + num3len + 4;
@@ -1440,27 +1440,27 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 						}
 						else
 						{
-							char* newtable = ExAllocatePoolWithTag(NonPagedPoolNx, KMCSFS->tablestrlen + 63, ALLOC_TAG);
+							char* newtable = kzalloc(KMCSFS->tablestrlen + 63, GFP_KERNEL);
 							if (!newtable)
 							{
 								ERR("out of memory\n");
-								ExFreePool(used_bytes);
+								kfree(used_bytes);
 								return false;
 							}
-							RtlCopyMemory(newtable, KMCSFS->tablestr, loc);
+							memcpy(newtable, KMCSFS->tablestr, loc);
 							char num1[21] = {0};
 							sprintf(num1, "%llu", cursector);
 							unsigned num1len = strlen(num1);
-							RtlCopyMemory(newtable + loc, num1, num1len);
+							memcpy(newtable + loc, num1, num1len);
 							newtable[loc + num1len] = *";";
 							newtable[loc + num1len + 1] = *"0";
 							newtable[loc + num1len + 2] = *";";
 							char num3[21] = {0};
 							sprintf(num3, "%llu", size % KMCSFS->sectorsize);
 							unsigned num3len = strlen(num3);
-							RtlCopyMemory(newtable + loc + num1len + 3, num3, num3len);
-							RtlCopyMemory(newtable + loc + num1len + 3 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-							ExFreePool(KMCSFS->tablestr);
+							memcpy(newtable + loc + num1len + 3, num3, num3len);
+							memcpy(newtable + loc + num1len + 3 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+							kfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += num1len + num3len + 3;
 							loc += num1len + num3len + 3;
@@ -1478,28 +1478,28 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 					{
 						if (!tablestr)
 						{
-							tablestr = ExAllocatePoolWithTag(NonPagedPoolNx, KMCSFS->tablestrlen, ALLOC_TAG);
+							tablestr = kzalloc(KMCSFS->tablestrlen, GFP_KERNEL);
 							if (!tablestr)
 							{
 								ERR("out of memory\n");
-								ExFreePool(used_bytes);
+								kfree(used_bytes);
 								return false;
 							}
-							RtlCopyMemory(tablestr, KMCSFS->tablestr, KMCSFS->tablestrlen);
+							memcpy(tablestr, KMCSFS->tablestr, KMCSFS->tablestrlen);
 						}
 
 						if (!used_sector_bytes)
 						{
-							used_sector_bytes = ExAllocatePoolWithTag(NonPagedPoolNx, KMCSFS->sectorsize / 8, ALLOC_TAG);
+							used_sector_bytes = kzalloc(KMCSFS->sectorsize / 8, GFP_KERNEL);
 							if (!used_sector_bytes)
 							{
 								ERR("out of memory\n");
-								ExFreePool(used_bytes);
-								ExFreePool(tablestr);
+								zfree(used_bytes);
+								zfree(tablestr);
 								return false;
 							}
 						}
-						RtlZeroMemory(used_sector_bytes, KMCSFS->sectorsize / 8);
+						memset(used_sector_bytes, 0, KMCSFS->sectorsize / 8);
 
 						cur = 0;
 						int0 = 0;
@@ -1518,7 +1518,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 									switch (cur)
 									{
 									case 0:
-										RtlCopyMemory(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
+										memcpy(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
 										temptablestrlen -= strsize;
 										o -= strsize;
 										break;
@@ -1529,7 +1529,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 										{
 											used_sector_bytes[p / sizeof(unsigned long long) / 8] |= ((unsigned long long)1 << (p % (sizeof(unsigned long long) * 8)));
 										}
-										RtlCopyMemory(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
+										memcpy(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
 										temptablestrlen -= strsize;
 										o -= strsize;
 										break;
@@ -1609,34 +1609,34 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 						{
 							if (cursize)
 							{
-								char* newtable = ExAllocatePoolWithTag(NonPagedPoolNx, KMCSFS->tablestrlen + 64, ALLOC_TAG);
+								char* newtable = kzalloc(KMCSFS->tablestrlen + 64, GFP_KERNEL);
 								if (!newtable)
 								{
 									ERR("out of memory\n");
-									ExFreePool(used_bytes);
-									ExFreePool(tablestr);
-									ExFreePool(used_sector_bytes);
+									zfree(used_bytes);
+									zfree(tablestr);
+									zfree(used_sector_bytes);
 									return false;
 								}
-								RtlCopyMemory(newtable, KMCSFS->tablestr, loc);
+								memcpy(newtable, KMCSFS->tablestr, loc);
 								newtable[loc] = *",";
 								char num1[21] = {0};
 								sprintf(num1, "%llu", cursector);
 								unsigned num1len = strlen(num1);
-								RtlCopyMemory(newtable + loc + 1, num1, num1len);
+								memcpy(newtable + loc + 1, num1, num1len);
 								newtable[loc + 1 + num1len] = *";";
 								char num2[21] = {0};
 								sprintf(num2, "%llu", offset - size);
 								newoffset = offset - size;
 								unsigned num2len = strlen(num2);
-								RtlCopyMemory(newtable + loc + 1 + num1len + 1, num2, num2len);
+								memcpy(newtable + loc + 1 + num1len + 1, num2, num2len);
 								newtable[loc + 1 + num1len + 1 + num2len] = *";";
 								char num3[21] = {0};
 								sprintf(num3, "%llu", offset);
 								unsigned num3len = strlen(num3);
-								RtlCopyMemory(newtable + loc + 1 + num1len + 1 + num2len + 1, num3, num3len);
-								RtlCopyMemory(newtable + loc + 1 + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-								ExFreePool(KMCSFS->tablestr);
+								memcpy(newtable + loc + 1 + num1len + 1 + num2len + 1, num3, num3len);
+								mmecpy(newtable + loc + 1 + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+								kfree(KMCSFS->tablestr);
 								KMCSFS->tablestr = newtable;
 								KMCSFS->tablestrlen += num1len + 1 + num2len + 1 + num3len + 1;
 								loc += num1len + 1 + num2len + 1 + num3len + 1;
@@ -1650,33 +1650,33 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 							}
 							else
 							{
-								char* newtable = ExAllocatePoolWithTag(NonPagedPoolNx, KMCSFS->tablestrlen + 63, ALLOC_TAG);
+								char* newtable = kzalloc(KMCSFS->tablestrlen + 63, GFP_KERNEL);
 								if (!newtable)
 								{
 									ERR("out of memory\n");
-									ExFreePool(used_bytes);
-									ExFreePool(tablestr);
-									ExFreePool(used_sector_bytes);
+									kfree(used_bytes);
+									kfree(tablestr);
+									kfree(used_sector_bytes);
 									return false;
 								}
-								RtlCopyMemory(newtable, KMCSFS->tablestr, loc);
+								memcpy(newtable, KMCSFS->tablestr, loc);
 								char num1[21] = {0};
 								sprintf(num1, "%llu", cursector);
 								unsigned num1len = strlen(num1);
-								RtlCopyMemory(newtable + loc, num1, num1len);
+								mmecpy(newtable + loc, num1, num1len);
 								newtable[loc + num1len] = *";";
 								char num2[21] = {0};
 								sprintf(num2, "%llu", offset - size);
 								newoffset = offset - size;
 								unsigned num2len = strlen(num2);
-								RtlCopyMemory(newtable + loc + num1len + 1, num2, num2len);
+								memcpy(newtable + loc + num1len + 1, num2, num2len);
 								newtable[loc + num1len + 1 + num2len] = *";";
 								char num3[21] = {0};
 								sprintf(num3, "%llu", offset);
 								unsigned num3len = strlen(num3);
-								RtlCopyMemory(newtable + loc + num1len + 1 + num2len + 1, num3, num3len);
-								RtlCopyMemory(newtable + loc + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-								ExFreePool(KMCSFS->tablestr);
+								memcpy(newtable + loc + num1len + 1 + num2len + 1, num3, num3len);
+								memcpy(newtable + loc + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+								kfree(KMCSFS->tablestr);
 								KMCSFS->tablestr = newtable;
 								KMCSFS->tablestrlen += num1len + 1 + num2len + 1 + num3len;
 								loc += num1len + 1 + num2len + 1 + num3len;
@@ -1694,22 +1694,22 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 				}
 				if (tablestr)
 				{
-					ExFreePool(tablestr);
+					kfree(tablestr);
 				}
 				if (used_sector_bytes)
 				{
-					ExFreePool(used_sector_bytes);
+					kfree(used_sector_bytes);
 				}
 			}
 			if (tempdata)
 			{
 				sync_write_phys(FileObject->DeviceObject, FileObject, KMCSFS->size - cursector * KMCSFS->sectorsize - KMCSFS->sectorsize + newoffset, endlength, tempdata + endoffset % 512, true);
-				ExFreePool(tempdata);
+				kfree(tempdata);
 				tempdata = NULL;
 			}
 		}
 
-		ExFreePool(used_bytes);
+		kfree(used_bytes);
 		if (!size)
 		{
 			unsigned long long extratablesize = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 2 + 35 * KMCSFS->filecount;
@@ -1719,7 +1719,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 				return false;
 			}
 			unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
-			char* newtable = ExAllocatePoolWithTag(NonPagedPoolNx, extratablesize, ALLOC_TAG);
+			char* newtable = kzalloc(extratablesize, GFP_KERNEL);
 			if (!newtable)
 			{
 				ERR("out of memory - could not write to disk 2\n");
@@ -1729,7 +1729,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 			if (!newtablestren)
 			{
 				ERR("out of memory - could not write to disk 3\n");
-				ExFreePool(newtable);
+				kfree(newtable);
 				return false;
 			}
 			newtable[0] = KMCSFS->table[0];
@@ -1737,14 +1737,14 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 			newtable[2] = (tablesize >> 16) & 0xff;
 			newtable[3] = (tablesize >> 8) & 0xff;
 			newtable[4] = tablesize & 0xff;
-			RtlCopyMemory(newtable + 5, newtablestren, (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
-			ExFreePool(newtablestren);
-			RtlCopyMemory(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, extratablesize - 5 - (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
+			memcpy(newtable + 5, newtablestren, (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
+			kfree(newtablestren);
+			memcpy(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, extratablesize - 5 - (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
 			KMCSFS->extratablesize = extratablesize;
 			KMCSFS->tablesize = 1 + tablesize;
 			KMCSFS->filenamesend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend;
 			KMCSFS->tableend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2;
-			ExFreePool(KMCSFS->table);
+			kfree(KMCSFS->table);
 			KMCSFS->table = newtable;
 			sync_write_phys(FileObject->DeviceObject, FileObject, 0, extratablesize, newtable, true);
 		}
@@ -1754,13 +1754,13 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 	{
 		if (!KMCSFS->used_blocks)
 		{
-			unsigned long* used_bytes = ExAllocatePoolWithTag(NonPagedPoolNx, (KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long), ALLOC_TAG);
+			unsigned long* used_bytes = kzalloc((KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long), GFP_KERNEL);
 			if (!used_bytes)
 			{
 				ERR("out of memory\n");
 				return false;
 			}
-			RtlZeroMemory(used_bytes, (KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long));
+			memset(used_bytes, 0, (KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long));
 			bool notzero = false;
 			bool multisector = false;
 			unsigned cur = 0;
@@ -1849,7 +1849,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 					}
 				}
 			}
-			ExFreePool(used_bytes);
+			kfree(used_bytes);
 		}
 		return true;
 	}
@@ -1857,21 +1857,21 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 
 bool delete_file(KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long index, PFILE_OBJECT FileObject)
 {
-	char* newtable = ExAllocatePoolWithTag(NonPagedPoolNx, KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1), ALLOC_TAG);
+	char* newtable = kzalloc(KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1), GFP_KERNEL);
 	if (!newtable)
 	{
 		ERR("out of memory\n");
 		return false;
 	}
-	RtlZeroMemory(newtable, KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1));
-	char* newtablestr = ExAllocatePoolWithTag(NonPagedPoolNx, KMCSFS->tablestrlen, ALLOC_TAG);
+	memset(newtable, 0, KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1));
+	char* newtablestr = kzalloc(KMCSFS->tablestrlen, GFP_KERNEL);
 	if (!newtablestr)
 	{
 		ERR("out of memory\n");
-		ExFreePool(newtable);
+		kfree(newtable);
 		return false;
 	}
-	RtlZeroMemory(newtablestr, KMCSFS->tablestrlen);
+	memset(newtablestr, 0, KMCSFS->tablestrlen);
 	unsigned long long tableloc = 0;
 	if (index)
 	{
@@ -1924,14 +1924,14 @@ bool delete_file(KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long
 		}
 	}
 	unsigned long long tablestrlen = KMCSFS->tablestrlen - tablelen;
-	RtlCopyMemory(newtablestr, KMCSFS->tablestr, tableloc);
-	RtlCopyMemory(newtablestr + tableloc, KMCSFS->tablestr + tableloc + tablelen, KMCSFS->tablestrlen - tableloc - tablelen);
+	memcpy(newtablestr, KMCSFS->tablestr, tableloc);
+	memcpy(newtablestr + tableloc, KMCSFS->tablestr + tableloc + tablelen, KMCSFS->tablestrlen - tableloc - tablelen);
 	char* newtablestren = encode(newtablestr, tablestrlen);
 	if (!newtablestren)
 	{
 		ERR("out of memory\n");
-		ExFreePool(newtable);
-		ExFreePool(newtablestr);
+		kfree(newtable);
+		kfree(newtablestr);
 		return false;
 	}
 	unsigned long long extratablesize = 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 35 * (KMCSFS->filecount - 1);
@@ -1941,14 +1941,14 @@ bool delete_file(KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long
 	newtable[2] = (tablesize >> 16) & 0xff;
 	newtable[3] = (tablesize >> 8) & 0xff;
 	newtable[4] = tablesize & 0xff;
-	RtlCopyMemory(newtable + 5, newtablestren, (tablestrlen + tablestrlen % 2) / 2);
-	ExFreePool(newtablestren);
-	RtlCopyMemory(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, loc - KMCSFS->tableend);
-	RtlCopyMemory(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + loc - KMCSFS->tableend, KMCSFS->table + loc + len, KMCSFS->filenamesend - loc - len + 2);
-	RtlCopyMemory(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2, KMCSFS->table + KMCSFS->filenamesend + 2, 24 * index);
-	RtlCopyMemory(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * (index + 1), 24 * (KMCSFS->filecount - index - 1));
-	RtlCopyMemory(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1), KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount, 11 * index);
-	RtlCopyMemory(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1) + 11 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount + 11 * (index + 1), 11 * (KMCSFS->filecount - index - 1));
+	memcpy(newtable + 5, newtablestren, (tablestrlen + tablestrlen % 2) / 2);
+	kfree(newtablestren);
+	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, loc - KMCSFS->tableend);
+	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + loc - KMCSFS->tableend, KMCSFS->table + loc + len, KMCSFS->filenamesend - loc - len + 2);
+	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2, KMCSFS->table + KMCSFS->filenamesend + 2, 24 * index);
+	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * (index + 1), 24 * (KMCSFS->filecount - index - 1));
+	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1), KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount, 11 * index);
+	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1) + 11 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount + 11 * (index + 1), 11 * (KMCSFS->filecount - index - 1));
 	sync_write_phys(FileObject->DeviceObject, FileObject, 0, 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 35 * (KMCSFS->filecount - 1), newtable, true);
 
 	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, filename.Buffer, filename.Length / sizeof(WCHAR));
@@ -1958,13 +1958,13 @@ bool delete_file(KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long
 	}
 
 	KMCSFS->used_blocks -= get_file_size(index, *KMCSFS) / KMCSFS->sectorsize;
-	ExFreePool(KMCSFS->table);
+	kfree(KMCSFS->table);
 	KMCSFS->table = newtable;
 	KMCSFS->tablesize = 1 + tablesize;
 	KMCSFS->extratablesize = extratablesize;
 	KMCSFS->filenamesend = 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len;
 	KMCSFS->tableend = 5 + (tablestrlen + tablestrlen % 2) / 2;
-	ExFreePool(KMCSFS->tablestr);
+	kfree(KMCSFS->tablestr);
 	KMCSFS->tablestr = newtablestr;
 	KMCSFS->tablestrlen = tablestrlen;
 	KMCSFS->filecount--;
@@ -1976,24 +1976,25 @@ NTSTATUS rename_file(KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn, 
 	unsigned long long extratablesize = KMCSFS->filenamesend + 2 + 35 * KMCSFS->filecount - fn.Length / sizeof(WCHAR) + nfn.Length / sizeof(WCHAR);
 	unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
 
-	char* newtable = ExAllocatePoolWithTag(NonPagedPoolNx, extratablesize, ALLOC_TAG);
+	char* newtable = kzalloc(extratablesize, GFP_KERNEL);
 	if (!newtable)
 	{
 		ERR("out of memory\n");
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-	RtlZeroMemory(newtable, extratablesize);
+	memset(newtable, 0, extratablesize);
 
 	if (!is_table_expandable(*KMCSFS, extratablesize))
 	{
 		ERR("table is not expandable\n");
+		kfree(newtable);
 		return STATUS_DISK_FULL;
 	}
 
 	unsigned long long index = get_filename_index(fn, KMCSFS);
 	if (!index)
 	{
-		ExFreePool(newtable);
+		kfree(newtable);
 		return STATUS_OBJECT_NAME_NOT_FOUND;
 	}
 
@@ -2020,7 +2021,7 @@ NTSTATUS rename_file(KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn, 
 	newtable[2] = (tablesize >> 16) & 0xff;
 	newtable[3] = (tablesize >> 8) & 0xff;
 	newtable[4] = tablesize & 0xff;
-	RtlCopyMemory(newtable + 5, KMCSFS->table + 5, loc - 5);
+	memcpy(newtable + 5, KMCSFS->table + 5, loc - 5);
 	newtable[loc] = *"\xff";
 	for (unsigned long long i = 0; i < nfn.Length / sizeof(WCHAR); i++)
 	{
@@ -2030,27 +2031,23 @@ NTSTATUS rename_file(KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn, 
 			newtable[loc + i + 1] = 47;
 		}
 	}
-	RtlCopyMemory(newtable + loc + 1 + nfn.Length / sizeof(WCHAR), KMCSFS->table + loc + 1 + fn.Length / sizeof(WCHAR), KMCSFS->filenamesend - loc - 1 - fn.Length / sizeof(WCHAR) + 2 + 35 * KMCSFS->filecount);
+	memcpy(newtable + loc + 1 + nfn.Length / sizeof(WCHAR), KMCSFS->table + loc + 1 + fn.Length / sizeof(WCHAR), KMCSFS->filenamesend - loc - 1 - fn.Length / sizeof(WCHAR) + 2 + 35 * KMCSFS->filecount);
 
 	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn.Buffer, fn.Length / sizeof(WCHAR));
 	if (dindex)
 	{
 		unsigned long long filenameloc = KMCSFS->dict[dindex].filenameloc;
 		unsigned long long opencount = KMCSFS->dict[dindex].opencount;
-		SHARE_ACCESS shareaccess = KMCSFS->dict[dindex].shareaccess;
-		FILE_LOCK filelock = KMCSFS->dict[dindex].lock;
 		unsigned long long flags = KMCSFS->dict[dindex].flags;
 		unsigned long long streamdeletecount = KMCSFS->dict[dindex].streamdeletecount;
 		struct _fcb* fcb = KMCSFS->dict[dindex].fcb;
-		PUNICODE_STRING filename = KMCSFS->dict[dindex].filename;
+		char* filename = KMCSFS->dict[dindex].filename;
 		RemoveDictEntry(KMCSFS->dict, KMCSFS->DictSize, dindex, fn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize);
 		AddDictEntry(&KMCSFS->dict, nfn.Buffer, filenameloc, nfn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, true);
 		dindex = FindDictEntry(KMCSFS->dict, newtable, KMCSFS->tableend, KMCSFS->DictSize, nfn.Buffer, nfn.Length / sizeof(WCHAR));
 		if (dindex)
 		{
 			KMCSFS->dict[dindex].opencount = opencount;
-			KMCSFS->dict[dindex].shareaccess = shareaccess;
-			KMCSFS->dict[dindex].lock = filelock;
 			KMCSFS->dict[dindex].flags = flags;
 			KMCSFS->dict[dindex].streamdeletecount = streamdeletecount;
 			KMCSFS->dict[dindex].fcb = fcb;
@@ -2061,7 +2058,7 @@ NTSTATUS rename_file(KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn, 
 	KMCSFS->filenamesend = KMCSFS->filenamesend - fn.Length / sizeof(WCHAR) + nfn.Length / sizeof(WCHAR);
 	KMCSFS->extratablesize = extratablesize;
 	KMCSFS->tablesize = 1 + tablesize;
-	ExFreePool(KMCSFS->table);
+	kfree(KMCSFS->table);
 	KMCSFS->table = newtable;
 
 	sync_write_phys(FileObject->DeviceObject, FileObject, 0, extratablesize, newtable, true);
