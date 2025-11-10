@@ -1,16 +1,17 @@
 // Copyright (c) Anthony Kerr 2024-
 
+#include "cspacefs.h"
 #include "Dict.h"
 #include "Sha3.h"
 
 Dict* CreateDict(unsigned long long size)
 {
-	Dict* dict = (Dict*)ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(Dict) * size, ALLOC_TAG);
+	Dict* dict = kzalloc(sizeof(Dict) * size, GFP_KERNEL);
 	if (dict == NULL)
 	{
 		return NULL;
 	}
-	RtlZeroMemory(dict, sizeof(Dict) * size);
+	memset(dict, 0, sizeof(Dict) * size);
 	return dict;
 }
 
@@ -19,13 +20,13 @@ Dict* ResizeDict(Dict* dict, unsigned long long oldsize, unsigned long long* new
 	Dict* ndict = NULL;
 startover:
 	*newsize *= 2;
-	ndict = (Dict*)ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(Dict) * *newsize, ALLOC_TAG);
+	ndict = kzalloc(sizeof(Dict) * *newsize, GFP_KERNEL);
 	if (ndict == NULL)
 	{
 		*newsize = oldsize;
 		return NULL;
 	}
-	RtlZeroMemory(ndict, sizeof(Dict) * *newsize);
+	memset(ndict, 0, sizeof(Dict) * *newsize);
 	for (unsigned long long i = 0; i < oldsize; i++)
 	{
 		if (dict[i].filenameloc)
@@ -42,15 +43,13 @@ startover:
 			}
 			if (j > *newsize - 1)
 			{
-				ExFreePool(ndict);
+				kfree(ndict);
 				goto startover;
 			}
 			ndict[j].filenameloc = dict[i].filenameloc;
 			ndict[j].hash = hash;
 			ndict[j].index = dict[i].index;
 			ndict[j].opencount = dict[i].opencount;
-			ndict[j].shareaccess = dict[i].shareaccess;
-			ndict[j].lock = dict[i].lock;
 			ndict[j].flags = dict[i].flags;
 			ndict[j].streamdeletecount = dict[i].streamdeletecount;
 			ndict[j].fcb = dict[i].fcb;
@@ -60,10 +59,10 @@ startover:
 	return ndict;
 }
 
-bool AddDictEntry(Dict** dict, PWCH filename, unsigned long long filenameloc, unsigned long long filenamelen, unsigned long long* cursize, unsigned long long* size, unsigned long long index, bool scan)
+bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, unsigned long long filenamelen, unsigned long long* cursize, unsigned long long* size, unsigned long long index, bool scan)
 {
 	unsigned long long hash = 0;
-	char* Filename = ExAllocatePoolWithTag(NonPagedPoolNx, filenamelen + 1, ALLOC_TAG);
+	char* Filename = kzalloc(filenamelen + 1, GFP_KERNEL);
 	if (Filename == NULL)
 	{
 		return false;
@@ -81,7 +80,7 @@ bool AddDictEntry(Dict** dict, PWCH filename, unsigned long long filenameloc, un
 		}
 	}
 	sha3_HashBuffer(256, 0, Filename, filenamelen, &hash, 8);
-	ExFreePool(Filename);
+	kfree(Filename);
 	unsigned long long i = hash % *size;
 	if (!i)
 	{
@@ -91,7 +90,7 @@ bool AddDictEntry(Dict** dict, PWCH filename, unsigned long long filenameloc, un
 	{
 		if ((*dict)[i].hash == hash)
 		{
-			RtlZeroMemory(*dict + i, sizeof(Dict));
+			memset(*dict + i, 0, sizeof(Dict));
 			(*dict)[i].hash = hash;
 			(*dict)[i].filenameloc = filenameloc;
 			(*dict)[i].index = index;
@@ -115,7 +114,7 @@ bool AddDictEntry(Dict** dict, PWCH filename, unsigned long long filenameloc, un
 		{
 			i++;
 		}
-		ExFreePool(*dict);
+		kfree(*dict);
 		*dict = tdict;
 	}
 	(*cursize)++;
@@ -137,11 +136,10 @@ bool AddDictEntry(Dict** dict, PWCH filename, unsigned long long filenameloc, un
 			}
 		}
 	}
-	RtlZeroMemory(*dict + i, sizeof(Dict));
+	memset(*dict + i, 0, sizeof(Dict));
 	(*dict)[i].hash = hash;
 	(*dict)[i].filenameloc = filenameloc;
 	(*dict)[i].index = index;
-	FsRtlInitializeFileLock(&(*dict)[i].lock, NULL, NULL);
 	if (*cursize * 3 / 4 > *size)
 	{
 		Dict* tdict = ResizeDict(*dict, *size, size);
@@ -149,15 +147,15 @@ bool AddDictEntry(Dict** dict, PWCH filename, unsigned long long filenameloc, un
 		{
 			return true;
 		}
-		ExFreePool(*dict);
+		kfree(*dict);
 		*dict = tdict;
 	}
 	return true;
 }
 
-unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tableend, unsigned long long size, PWCH filename, unsigned long long filenamelen)
+unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tableend, unsigned long long size, char* filename, unsigned long long filenamelen)
 {
-	char* Filename = ExAllocatePoolWithTag(NonPagedPoolNx, filenamelen + 1, ALLOC_TAG);
+	char* Filename = kzalloc(filenamelen + 1, GFP_KERNEL);
 	if (Filename == NULL)
 	{
 		return 0;
@@ -185,12 +183,12 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 	{
 		if (o > size - 1)
 		{
-			ExFreePool(Filename);
+			kfree(Filename);
 			return 0;
 		}
 		if (!dict[o].filenameloc)
 		{
-			ExFreePool(Filename);
+			kfree(Filename);
 			return 0;
 		}
 		for (unsigned long long j = 0; j < filenamelen; j++)
@@ -208,7 +206,7 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 			}
 			if (j == filenamelen - 1 && ((table[tableend + dict[o].filenameloc + j + 1] & 0xff) == 255 || (table[tableend + dict[o].filenameloc + j + 1] & 0xff) == 42) && dict[o].hash == hash)
 			{
-				ExFreePool(Filename);
+				kfree(Filename);
 				return o;
 			}
 		}
@@ -220,8 +218,7 @@ void RemoveDictEntry(Dict* dict, unsigned long long size, unsigned long long din
 {
 	unsigned long long index = dict[dindex].index;
 	unsigned long long filenameloc = dict[dindex].filenameloc;
-	FsRtlUninitializeFileLock(&dict[dindex].lock);
-	RtlZeroMemory(dict + dindex, sizeof(Dict));
+	memset(dict + dindex, 0, sizeof(Dict));
 	(*cursize)--;
 	for (unsigned long long i = 0; i < size; i++)
 	{

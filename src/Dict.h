@@ -13,16 +13,14 @@ typedef struct _Dict
 	unsigned long long index;
 
 	unsigned long long opencount;
-	SHARE_ACCESS shareaccess;
-	FILE_LOCK lock;
 	unsigned long long flags;
 	unsigned long long streamdeletecount;
 	struct _fcb* fcb;
-	PUNICODE_STRING filename;
+	char* filename;
 } Dict;
 
 Dict* CreateDict(unsigned long long size);
 Dict* ResizeDict(Dict* dict, unsigned long long oldsize, unsigned long long* newsize);
-bool AddDictEntry(Dict** dict, PWCH filename, unsigned long long filenameloc, unsigned long long filenamelen, unsigned long long* cursize, unsigned long long* size, unsigned long long index, bool scan);
-unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tableend, unsigned long long size, PWCH filename, unsigned long long filenamelen);
+bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, unsigned long long filenamelen, unsigned long long* cursize, unsigned long long* size, unsigned long long index, bool scan);
+unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tableend, unsigned long long size, char* filename, unsigned long long filenamelen);
 void RemoveDictEntry(Dict* dict, unsigned long long size, unsigned long long dindex, unsigned long long filenamelen, unsigned long long* cursize);

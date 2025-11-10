@@ -1,5 +1,6 @@
 // Copyright (c) Anthony Kerr 2024-
 
+#include "cspacefs.h"
 #include "Dict.h"
 
 unsigned* emap = NULL;
