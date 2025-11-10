@@ -6,7 +6,7 @@ KDIR ?= /lib/modules/$(shell uname -r)/build
 MKFS = build/mkfs.simplefs
 
 all: $(MKFS)
-	make -C $(KDIR) M=$(PWD) MO=$(PWD)/build modules
+	make -C $(KDIR) M=$(PWD)/src MO=$(PWD)/build modules
 
 IMAGE ?= test/test.img
 IMAGESIZE ?= 200
@@ -16,7 +16,7 @@ JOURNALSIZE ?= 8
 # To test max files(40920) in directory, the image size should be at least 159.85 MiB
 # 40920 * 4096(block size) ~= 159.85 MiB
 
-$(MKFS): mkfs.c
+$(MKFS): src/mkfs.c
 	$(CC) -std=gnu99 -Wall -o $@ $<
 
 $(IMAGE): $(MKFS)
@@ -33,7 +33,7 @@ check: all
 	script/test.sh $(IMAGE) $(IMAGESIZE) $(MKFS)
 
 clean:
-	make -C $(KDIR) M=$(PWD) MO=$(PWD)/build clean
+	make -C $(KDIR) M=$(PWD)/src MO=$(PWD)/build clean
 	rm -f $(MKFS) $(IMAGE) $(JOURNAL)
 
 .PHONY: all clean journal

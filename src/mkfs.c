@@ -254,14 +254,35 @@ static int write_data_blocks(int fd, struct superblock *sb)
 
 int main(int argc, char **argv)
 {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s disk\n", argv[0]);
+    if (argc != 3)
+    {
+        fprintf(stderr, "Usage: %s disk sectorsize\n", argv[0]);
         return EXIT_FAILURE;
     }
 
+    /* Calculate SectorSize */
+    char* endptr;
+    unsigned long long sectorsize = strtoull(argv[2], &endptr, 10);
+    if (*endptr != '\0')
+    {
+        fprintf(stderr, "Error: Invalid characters in sectorsize.\n");
+    }
+    else
+    {
+        fprintf(stdout, "Converted value: %llu\n", sectorsize);
+    }
+    unsigned long long i = 0;
+    while (sectorsize > 512)
+    {
+        i += 1;
+        sectorsize >>= 1;
+    }
+    sectorsize = 1 << (9 + (i & 0xff));
+
     /* Open disk image */
     int fd = open(argv[1], O_RDWR);
-    if (fd == -1) {
+    if (fd == -1)
+    {
         perror("open():");
         return EXIT_FAILURE;
     }
@@ -269,17 +290,20 @@ int main(int argc, char **argv)
     /* Get image size */
     struct stat stat_buf;
     int ret = fstat(fd, &stat_buf);
-    if (ret) {
+    if (ret)
+    {
         perror("fstat():");
         ret = EXIT_FAILURE;
         goto fclose;
     }
 
     /* Get block device size */
-    if ((stat_buf.st_mode & S_IFMT) == S_IFBLK) {
+    if ((stat_buf.st_mode & S_IFMT) == S_IFBLK)
+    {
         long int blk_size = 0;
         ret = ioctl(fd, BLKGETSIZE64, &blk_size);
-        if (ret != 0) {
+        if (ret != 0)
+        {
             perror("BLKGETSIZE64:");
             ret = EXIT_FAILURE;
             goto fclose;
@@ -288,7 +312,7 @@ int main(int argc, char **argv)
     }
 
     /* Verify if the file system image has sufficient size. */
-    long int min_size = 100 * SIMPLEFS_BLOCK_SIZE;
+    long int min_size = 2 * sectorsize;
     if (stat_buf.st_size < min_size) {
         fprintf(stderr, "File is not large enough (size=%ld, min size=%ld)\n",
                 stat_buf.st_size, min_size);
