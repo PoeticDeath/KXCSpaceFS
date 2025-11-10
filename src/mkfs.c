@@ -278,6 +278,7 @@ int main(int argc, char **argv)
         sectorsize >>= 1;
     }
     sectorsize = 1 << (9 + (i & 0xff));
+    fprintf(stdout, "Calculated value: %llu\n", sectorsize);
 
     /* Open disk image */
     int fd = open(argv[1], O_RDWR);
