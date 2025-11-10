@@ -82,6 +82,6 @@ static void __exit kxcspacefs_exit(void)
 module_init(kxcspacefs_init);
 module_exit(kxcspacefs_exit);
 
-MODULE_LICENSE("GNU General Public License v3.0");
+MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Anthony Kerr");
 MODULE_DESCRIPTION("Kernel Mode Driver for CSpaceFS.");
