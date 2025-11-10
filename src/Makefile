@@ -24,6 +24,10 @@ $(IMAGE): $(MKFS)
 check: all
 	script/test.sh $(IMAGE) $(IMAGESIZE) $(MKFS)
 
+bear:
+	make -C $(KDIR) M=$(PWD)/src MO=$(PWD)/build clean
+	bear --append --output $(PWD)/.vscode/compile_commands.json -- $(MAKE) -C $(KDIR) M=$(PWD)/src MO=$(PWD)/build modules
+
 clean:
 	make -C $(KDIR) M=$(PWD)/src MO=$(PWD)/build clean
 	rm -f $(MKFS) $(IMAGE)
