@@ -4,10 +4,12 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
+#include "simplefs.h"
+
 /* Mount a kxcspacefs partition */
 struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data)
 {
-    struct dentry *dentry = NULL;//mount_bdev(fs_type, flags, dev_name, data, simplefs_fill_super);
+    struct dentry *dentry = mount_bdev(fs_type, flags, dev_name, data, simplefs_fill_super);
     if (IS_ERR(dentry))
     {
         pr_err("'%s' mount failure\n", dev_name);
@@ -39,7 +41,7 @@ static struct file_system_type kxcspacefs_file_system_type = {
 
 static int __init kxcspacefs_init(void)
 {
-    int ret = 0;//simplefs_init_inode_cache();
+    int ret = simplefs_init_inode_cache();
     if (ret)
     {
         pr_err("Failed to create inode cache\n");
@@ -57,7 +59,7 @@ static int __init kxcspacefs_init(void)
     return 0;
 
 err_inode:
-    //simplefs_destroy_inode_cache();
+    simplefs_destroy_inode_cache();
     /* Only after rcu_barrier() is the memory guaranteed to be freed. */
     rcu_barrier();
 err:
@@ -72,7 +74,7 @@ static void __exit kxcspacefs_exit(void)
         pr_err("Failed to unregister file system\n");
     }
 
-    //simplefs_destroy_inode_cache();
+    simplefs_destroy_inode_cache();
     /* Only after rcu_barrier() is the memory guaranteed to be freed. */
     rcu_barrier();
 

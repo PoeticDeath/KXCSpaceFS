@@ -1,4 +1,4 @@
-#define pr_fmt(fmt) "simplefs: " fmt
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/buffer_head.h>
 #include <linux/fs.h>
