@@ -508,7 +508,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 							if (init)
 							{
 								sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize + (start % KMCSFS.sectorsize) - (start % 512), min(sector_align(KMCSFS.sectorsize - start % KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % KMCSFS.sectorsize) - (start % 512), bdev);
-								memcpy(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
+								copy_to_user(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
 								*bytes_read += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 								start += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 								init = false;
@@ -516,7 +516,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 							else
 							{
 								sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize, KMCSFS.sectorsize, buf, bdev);
-								memcpy(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
+								copy_to_user(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
 								start += min(KMCSFS.sectorsize, length - *bytes_read);
 								*bytes_read += min(KMCSFS.sectorsize, length - *bytes_read);
 							}
@@ -532,7 +532,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 						if (init)
 						{
 							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + (start % KMCSFS.sectorsize) - (start % 512), min(sector_align(KMCSFS.sectorsize - start % KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % KMCSFS.sectorsize) - (start % 512), bdev);
-							memcpy(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
+							copy_to_user(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
 							*bytes_read += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 							start += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 							init = false;
@@ -540,7 +540,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 						else
 						{
 							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize, KMCSFS.sectorsize, buf, bdev);
-							memcpy(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
+							copy_to_user(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
 							start += min(KMCSFS.sectorsize, length - *bytes_read);
 							*bytes_read += min(KMCSFS.sectorsize, length - *bytes_read);
 						}
@@ -555,14 +555,14 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 						sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1 - int1 % 512, sector_align(int2 - int1 + int1 % 512, 512), buf + int1 - int1 % 512, bdev);
 						if (init)
 						{
-							memcpy(data, buf + int1 + (start % KMCSFS.sectorsize), min(int2 - int1, length));
+							copy_to_user(data, buf + int1 + (start % KMCSFS.sectorsize), min(int2 - int1, length));
 							start += min(int2 - int1, length);
 							*bytes_read += min(int2 - int1, length);
 							init = false;
 						}
 						else
 						{
-							memcpy(data + *bytes_read, buf + int1, min(int2 - int1, length - *bytes_read));
+							copy_to_user(data + *bytes_read, buf + int1, min(int2 - int1, length - *bytes_read));
 							start += min(int2 - int1, length - *bytes_read);
 							*bytes_read += min(int2 - int1, length - *bytes_read);
 						}

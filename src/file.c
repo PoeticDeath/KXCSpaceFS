@@ -9,6 +9,9 @@
 #include "bitmap.h"
 #include "super.h"
 
+#include "Dict.h"
+#include "cspacefs.h"
+
 /* Associate the provided 'buffer_head' parameter with the iblock-th block of
  * the file denoted by inode. Should the specified block be unallocated and the
  * create flag is set to true, proceed to allocate a new block on the disk and
@@ -317,65 +320,34 @@ static int simplefs_open(struct inode *inode, struct file *filp)
     return 0;
 }
 
-static ssize_t simplefs_read(struct file *file,
-                             char __user *buf,
-                             size_t len,
-                             loff_t *ppos)
+static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, loff_t* ppos)
 {
     struct inode *inode = file_inode(file);
     struct super_block *sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
+    unsigned long long bytes_to_read = 0;
     ssize_t bytes_read = 0;
     loff_t pos = *ppos;
 
     if (pos > inode->i_size)
+    {
         return 0;
-
-    /* find extent block */
-    struct buffer_head *bh = sb_bread(sb, SIMPLEFS_INODE(inode)->ei_block);
-    struct simplefs_file_ei_block *ei_block =
-        (struct simplefs_file_ei_block *) bh->b_data;
+    }
 
     if (pos + len > inode->i_size)
+    {
         len = inode->i_size - pos;
+    }
 
-    /* count block position */
-    sector_t block_index = pos / SIMPLEFS_BLOCK_SIZE;
-    sector_t ei_index = block_index / SIMPLEFS_MAX_BLOCKS_PER_EXTENT;
-    sector_t block_offset = ei_block->extents[ei_index].ee_start +
-                            block_index % SIMPLEFS_MAX_BLOCKS_PER_EXTENT;
-
-    while (len > 0) {
-        struct buffer_head *bh_data = sb_bread(sb, block_offset);
-        if (!bh_data) {
-            pr_err("Failed to read data block %llu\n", block_offset);
-            bytes_read = -EIO;
-            break;
-        }
-
-        size_t offset = pos % SIMPLEFS_BLOCK_SIZE;
-        size_t bytes_to_read =
-            min_t(size_t, len, SIMPLEFS_BLOCK_SIZE - pos % SIMPLEFS_BLOCK_SIZE);
-        if (copy_to_user(buf + bytes_read, bh_data->b_data + offset,
-                         bytes_to_read)) {
-            brelse(bh_data);
-            bytes_read = -EFAULT;
-            break;
-        }
-        brelse(bh_data);
-
+    UNICODE_STRING* fn = inode->i_private;
+    bytes_read = read_file(sb->s_bdev, *KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read);
+    if (!bytes_read)
+    {
         /* successfully read data */
         bytes_read += bytes_to_read;
         len -= bytes_to_read;
         pos += bytes_to_read;
-
-        /* count extent block */
-        block_index++;
-        ei_index = block_index / SIMPLEFS_MAX_BLOCKS_PER_EXTENT;
-        block_offset = ei_block->extents[ei_index].ee_start +
-                       block_index % SIMPLEFS_MAX_BLOCKS_PER_EXTENT;
     }
-
-    brelse(bh);
     *ppos = pos;
 
     return bytes_read;
@@ -491,10 +463,11 @@ const struct address_space_operations simplefs_aops = {
     .write_end = simplefs_write_end,
 };
 
-const struct file_operations simplefs_file_ops = {
+const struct file_operations simplefs_file_ops =
+{
     .owner = THIS_MODULE,
     .open = simplefs_open,
-    .read = simplefs_read,
+    .read = kxcspacefs_read,
     .write = simplefs_write,
     .llseek = generic_file_llseek,
     .fsync = generic_file_fsync,
