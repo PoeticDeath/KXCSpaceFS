@@ -12,7 +12,7 @@
 #include <linux/namei.h>
 #include <linux/parser.h>
 
-#include "simplefs.h"
+#include "super.h"
 
 struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data);
 void kxcspacefs_kill_sb(struct super_block *sb);

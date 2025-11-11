@@ -4,7 +4,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
-#include "simplefs.h"
+#include "super.h"
 
 /* Mount a kxcspacefs partition */
 struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data)

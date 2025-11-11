@@ -1,7 +1,7 @@
 #include <linux/fs.h>
 #include <linux/kernel.h>
 
-#include "simplefs.h"
+#include "super.h"
 
 /* Search for the extent containing the target block. Binary search is used
  * for efficiency.

@@ -6,7 +6,7 @@
 #include <linux/module.h>
 
 #include "bitmap.h"
-#include "simplefs.h"
+#include "super.h"
 
 static const struct inode_operations simplefs_inode_ops;
 static const struct inode_operations symlink_inode_ops;

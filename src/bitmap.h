@@ -3,7 +3,7 @@
 
 #include <linux/bitmap.h>
 
-#include "simplefs.h"
+#include "super.h"
 
 /* Returns the first bit found and clears the following 'len' consecutive
  * free bits (sets them to 1) in a given in-memory bitmap spanning multiple

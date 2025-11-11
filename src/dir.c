@@ -5,7 +5,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
-#include "simplefs.h"
+#include "super.h"
 
 /* Iterate over the files contained in dir and commit them to @ctx.
  * This function is called by the VFS as ctx->pos changes.

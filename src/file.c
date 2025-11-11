@@ -7,7 +7,7 @@
 #include <linux/mpage.h>
 
 #include "bitmap.h"
-#include "simplefs.h"
+#include "super.h"
 
 /* Associate the provided 'buffer_head' parameter with the iblock-th block of
  * the file denoted by inode. Should the specified block be unallocated and the
