@@ -113,120 +113,17 @@ static int simplefs_write_inode(struct inode *inode,
     return 0;
 }
 
-static void simplefs_put_super(struct super_block *sb)
+static void kxcspacefs_put_super(struct super_block *sb)
 {
-    struct simplefs_sb_info *sbi = SIMPLEFS_SB(sb);
-    int aborted = 0;
-    int err;
-
-    if (sbi->journal) {
-        aborted = is_journal_aborted(sbi->journal);
-        err = jbd2_journal_destroy(sbi->journal);
-        sbi->journal = NULL;
-        if ((err < 0) && !aborted) {
-            pr_err("Couldn't clean up the journal, error %d\n", -err);
-        }
-    }
-
     sync_blockdev(sb->s_bdev);
     invalidate_bdev(sb->s_bdev);
-#if SIMPLEFS_AT_LEAST(6, 9, 0)
-    if (sbi->s_journal_bdev_file) {
-        sync_blockdev(file_bdev(sbi->s_journal_bdev_file));
-        invalidate_bdev(file_bdev(sbi->s_journal_bdev_file));
-    }
-#elif SIMPLEFS_AT_LEAST(6, 7, 0)
-    if (sbi->s_journal_bdev_handle) {
-        sync_blockdev(sbi->s_journal_bdev_handle->bdev);
-        invalidate_bdev(sbi->s_journal_bdev_handle->bdev);
-    }
-#elif SIMPLEFS_AT_LEAST(6, 6, 0)
-    if (sbi->s_journal_bdev) {
-        sync_blockdev(sbi->s_journal_bdev);
-        invalidate_bdev(sbi->s_journal_bdev);
-    }
-#elif SIMPLEFS_AT_LEAST(6, 5, 0)
-    if (sbi->s_journal_bdev) {
-        sync_blockdev(sbi->s_journal_bdev);
-        invalidate_bdev(sbi->s_journal_bdev);
-        blkdev_put(sbi->s_journal_bdev, sb);
-        sbi->s_journal_bdev = NULL;
-    }
-#elif SIMPLEFS_AT_LEAST(5, 10, 0)
-    if (sbi->s_journal_bdev && sbi->s_journal_bdev != sb->s_bdev) {
-        sync_blockdev(sbi->s_journal_bdev);
-        invalidate_bdev(sbi->s_journal_bdev);
-        blkdev_put(sbi->s_journal_bdev, FMODE_READ | FMODE_WRITE | FMODE_EXCL);
-        sbi->s_journal_bdev = NULL;
-    }
-#endif
-
-    if (sbi) {
-        kfree(sbi->ifree_bitmap);
-        kfree(sbi->bfree_bitmap);
-        kfree(sbi);
-    }
 }
 
-static int simplefs_sync_fs(struct super_block *sb, int wait)
+static int kxcspacefs_sync_fs(struct super_block *sb, int wait)
 {
-    struct simplefs_sb_info *sbi = SIMPLEFS_SB(sb);
-    struct simplefs_sb_info *disk_sb;
-    int i;
+    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
 
-    /* Flush superblock */
-    struct buffer_head *bh = sb_bread(sb, 0);
-    if (!bh)
-        return -EIO;
-
-    disk_sb = (struct simplefs_sb_info *) bh->b_data;
-
-    disk_sb->nr_blocks = sbi->nr_blocks;
-    disk_sb->nr_inodes = sbi->nr_inodes;
-    disk_sb->nr_istore_blocks = sbi->nr_istore_blocks;
-    disk_sb->nr_ifree_blocks = sbi->nr_ifree_blocks;
-    disk_sb->nr_bfree_blocks = sbi->nr_bfree_blocks;
-    disk_sb->nr_free_inodes = sbi->nr_free_inodes;
-    disk_sb->nr_free_blocks = sbi->nr_free_blocks;
-
-    mark_buffer_dirty(bh);
-    if (wait)
-        sync_dirty_buffer(bh);
-    brelse(bh);
-
-    /* Flush free inodes bitmask */
-    for (i = 0; i < sbi->nr_ifree_blocks; i++) {
-        int idx = sbi->nr_istore_blocks + i + 1;
-
-        bh = sb_bread(sb, idx);
-        if (!bh)
-            return -EIO;
-
-        memcpy(bh->b_data, (void *) sbi->ifree_bitmap + i * SIMPLEFS_BLOCK_SIZE,
-               SIMPLEFS_BLOCK_SIZE);
-
-        mark_buffer_dirty(bh);
-        if (wait)
-            sync_dirty_buffer(bh);
-        brelse(bh);
-    }
-
-    /* Flush free blocks bitmask */
-    for (i = 0; i < sbi->nr_bfree_blocks; i++) {
-        int idx = sbi->nr_istore_blocks + sbi->nr_ifree_blocks + i + 1;
-
-        bh = sb_bread(sb, idx);
-        if (!bh)
-            return -EIO;
-
-        memcpy(bh->b_data, (void *) sbi->bfree_bitmap + i * SIMPLEFS_BLOCK_SIZE,
-               SIMPLEFS_BLOCK_SIZE);
-
-        mark_buffer_dirty(bh);
-        if (wait)
-            sync_dirty_buffer(bh);
-        brelse(bh);
-    }
+    // Future
 
     return 0;
 }
@@ -518,12 +415,13 @@ static int simplefs_parse_options(struct super_block *sb, char *options)
     return 0;
 }
 
-static struct super_operations simplefs_super_ops = {
-    .put_super = simplefs_put_super,
+static struct super_operations simplefs_super_ops =
+{
+    .put_super = kxcspacefs_put_super,
     .alloc_inode = simplefs_alloc_inode,
     .destroy_inode = simplefs_destroy_inode,
     .write_inode = simplefs_write_inode,
-    .sync_fs = simplefs_sync_fs,
+    .sync_fs = kxcspacefs_sync_fs,
     .statfs = simplefs_statfs,
 };
 
