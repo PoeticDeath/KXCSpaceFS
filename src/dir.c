@@ -55,7 +55,7 @@ static int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
 		{
 			if ((KMCSFS->table[KMCSFS->tableend + tableoffset] & 0xff) == 255 || (KMCSFS->table[KMCSFS->tableend + tableoffset] & 0xff) == 42) // 255 = file, 42 = fuse symlink
 			{
-				if (fn->Length / sizeof(WCHAR) < filenamelen)
+				if (fn->Length / sizeof(WCHAR) < filenamelen && filenamelen > 1)
 				{
 					bool isin = true;
 					unsigned long long i = 0;
@@ -91,7 +91,7 @@ static int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
 					if (isin)
 					{
                         curoffset++;
-                        if (curoffset >= offset)
+                        if (curoffset > offset)
                         {
 						    break;
                         }
@@ -109,7 +109,7 @@ static int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
 	    if (filenamelen)
 	    {
             rfn.Length = filenamelen;
-            if (!dir_emit(ctx, rfn.Buffer, SIMPLEFS_FILENAME_LEN, kxcspacefs_iget(sb, 0, &rfn)->i_ino, DT_UNKNOWN))
+            if (!dir_emit(ctx, rfn.Buffer + fn->Length + 1, rfn.Length - fn->Length - sizeof(WCHAR), kxcspacefs_iget(sb, 0, &rfn)->i_ino, DT_UNKNOWN))
             {
                 ret = 1;
                 break;
