@@ -7,110 +7,123 @@
 
 #include "super.h"
 
+#include "Dict.h"
+#include "cspacefs.h"
+
 /* Iterate over the files contained in dir and commit them to @ctx.
  * This function is called by the VFS as ctx->pos changes.
  * Returns 0 on success.
  */
-static int simplefs_iterate(struct file *dir, struct dir_context *ctx)
+static int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
 {
-    struct inode *inode = file_inode(dir);
-    struct simplefs_inode_info *ci = SIMPLEFS_INODE(inode);
-    struct super_block *sb = inode->i_sb;
-    struct buffer_head *bh = NULL, *bh2 = NULL;
-    struct simplefs_file_ei_block *eblock = NULL;
-    struct simplefs_dir_block *dblock = NULL;
-    int ei = 0, bi = 0, fi = 0;
+    struct inode* inode = file_inode(dir);
+    struct super_block* sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
     int ret = 0;
 
     /* Check that dir is a directory */
     if (!S_ISDIR(inode->i_mode))
+    {
         return -ENOTDIR;
-
-    /* Check that ctx->pos is not bigger than what we can handle (including
-     * . and ..)
-     */
-    if (ctx->pos > SIMPLEFS_MAX_SUBFILES + 2)
-        return 0;
+    }
 
     /* Commit . and .. to ctx */
     if (!dir_emit_dots(dir, ctx))
+    {
         return 0;
-
-    /* Read the directory index block on disk */
-    bh = sb_bread(sb, ci->ei_block);
-    if (!bh)
-        return -EIO;
-    eblock = (struct simplefs_file_ei_block *) bh->b_data;
-
-    if (ctx->pos - 2 == eblock->nr_files)
-        goto release_bh;
-
-    int remained_nr_files = eblock->nr_files - (ctx->pos - 2);
-
-    int offset = ctx->pos - 2;
-    for (ei = 0; ei < SIMPLEFS_MAX_EXTENTS; ei++) {
-        if (eblock->extents[ei].ee_start == 0)
-            continue;
-        if (offset > eblock->extents[ei].nr_files) {
-            offset -= eblock->extents[ei].nr_files;
-        } else {
-            break;
-        }
     }
 
-    /* Iterate over the index block and commit subfiles */
-    for (; remained_nr_files && ei < SIMPLEFS_MAX_EXTENTS; ei++) {
-        if (eblock->extents[ei].ee_start == 0)
-            continue;
+    /* Read the directory */
+    unsigned long long offset = ctx->pos - 2;
+    unsigned long long curoffset = 0;
+    UNICODE_STRING* fn = inode->i_private;
+    UNICODE_STRING rfn;
+    rfn.Length = 65536;
+    rfn.Buffer = kzalloc(rfn.Length, GFP_KERNEL);
+    if (!rfn.Buffer)
+    {
+        pr_err("out of memory\n");
+        return -ENOMEM;
+    }
 
-        /* Iterate over blocks in one extent */
-        for (bi = 0; bi < eblock->extents[ei].ee_len && remained_nr_files;
-             bi++) {
-            bh2 = sb_bread(sb, eblock->extents[ei].ee_start + bi);
-            if (!bh2) {
-                ret = -EIO;
-                goto release_bh;
-            }
-            dblock = (struct simplefs_dir_block *) bh2->b_data;
+    unsigned long long tableoffset = 0;
+    while (tableoffset < KMCSFS->filenamesend - KMCSFS->tableend + 1)
+	{
+		unsigned long long filenamelen = 0;
 
-            if (offset > dblock->nr_files) {
-                offset -= dblock->nr_files;
-                brelse(bh2);
-                bh2 = NULL;
-                continue;
-            }
-
-            for (fi = 0; fi < SIMPLEFS_FILES_PER_BLOCK;) {
-                if (dblock->files[fi].inode != 0) {
-                    if (offset) {
-                        offset--;
-                    } else {
-                        remained_nr_files--;
-                        if (!dir_emit(ctx, dblock->files[fi].filename,
-                                      SIMPLEFS_FILENAME_LEN,
-                                      dblock->files[fi].inode, DT_UNKNOWN)) {
-                            brelse(bh2);
-                            bh2 = NULL;
-                            goto release_bh;
+		for (; tableoffset < KMCSFS->filenamesend - KMCSFS->tableend + 1; tableoffset++)
+		{
+			if ((KMCSFS->table[KMCSFS->tableend + tableoffset] & 0xff) == 255 || (KMCSFS->table[KMCSFS->tableend + tableoffset] & 0xff) == 42) // 255 = file, 42 = fuse symlink
+			{
+				if (fn->Length / sizeof(WCHAR) < filenamelen)
+				{
+					bool isin = true;
+					unsigned long long i = 0;
+					for (; i < fn->Length / sizeof(WCHAR); i++)
+					{
+						if (!incmp(fn->Buffer[i] & 0xff, rfn.Buffer[i] & 0xff) && !(fn->Buffer[i] == '/' && rfn.Buffer[i] == '\\') && !(fn->Buffer[i] == '\\' && rfn.Buffer[i] == '/'))
+						{
+							isin = false;
+							break;
+						}
+					}
+					if (!(rfn.Buffer[i] == '/') && !(rfn.Buffer[i] == '\\') && (fn->Length > 2))
+					{
+						isin = false;
+					}
+					i++;
+					for (; i < filenamelen; i++)
+					{
+						if (rfn.Buffer[i] == '/' || rfn.Buffer[i] == '\\')
+						{
+							isin = false;
+							break;
+						}
+					}
+					for (unsigned long long j = 0; j < filenamelen; j++)
+					{
+						if (rfn.Buffer[j] == ':')
+						{
+							isin = false;
+							break;
+						}
+					}
+					if (isin)
+					{
+                        curoffset++;
+                        if (curoffset >= offset)
+                        {
+						    break;
                         }
+					}
+				}
+				filenamelen = 0;
+			}
+			else
+			{
+				rfn.Buffer[filenamelen] = KMCSFS->table[KMCSFS->tableend + tableoffset] & 0xff;
+				filenamelen++;
+			}
+		}
 
-                        ctx->pos++;
-                    }
-                }
-                fi += dblock->files[fi].nr_blk;
+	    if (filenamelen)
+	    {
+            rfn.Length = filenamelen;
+            if (!dir_emit(ctx, rfn.Buffer, SIMPLEFS_FILENAME_LEN, kxcspacefs_iget(sb, 0, &rfn)->i_ino, DT_UNKNOWN))
+            {
+                ret = 1;
+                break;
             }
-            brelse(bh2);
-            bh2 = NULL;
+            ctx->pos++;
         }
     }
 
-release_bh:
-    brelse(bh);
-
+    kfree(rfn.Buffer);
     return ret;
 }
 
-const struct file_operations simplefs_dir_ops = {
+const struct file_operations simplefs_dir_ops =
+{
     .owner = THIS_MODULE,
-    .iterate_shared = simplefs_iterate,
+    .iterate_shared = kxcspacefs_iterate,
 };
