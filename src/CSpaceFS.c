@@ -8,6 +8,16 @@ unsigned* emap = NULL;
 unsigned* dmap = NULL;
 long _fltused = 0;
 
+static unsigned long long sector_align(unsigned long long n, unsigned long long a)
+{
+	if (n & (a - 1))
+	{
+		n = (n + a) & ~(a - 1);
+	}
+
+	return n;
+}
+
 void init_maps()
 {
 	static const char charmap[] = "0123456789-,.; ";
@@ -167,30 +177,6 @@ unsigned long long get_filename_index(UNICODE_STRING FileName, KMCSpaceFS* KMCSF
 	return 0;
 }
 
-static unsigned long attrtoATTR(unsigned long attr)
-{
-	unsigned long ATTR = 0;
-	if (attr & FILE_ATTRIBUTE_HIDDEN) ATTR |= 32768;
-	if (attr & FILE_ATTRIBUTE_READONLY) ATTR |= 4096;
-	if (attr & FILE_ATTRIBUTE_SYSTEM) ATTR |= 128;
-	if (attr & FILE_ATTRIBUTE_ARCHIVE) ATTR |= 2048;
-	if (attr & FILE_ATTRIBUTE_DIRECTORY) ATTR |= 8192;
-	if (attr & FILE_ATTRIBUTE_REPARSE_POINT) ATTR |= 1024;
-	return ATTR;
-}
-
-static unsigned long ATTRtoattr(unsigned long ATTR)
-{
-	unsigned long attr = 0;
-	if (ATTR & 32768) attr |= FILE_ATTRIBUTE_HIDDEN;
-	if (ATTR & 4096) attr |= FILE_ATTRIBUTE_READONLY;
-	if (ATTR & 128) attr |= FILE_ATTRIBUTE_SYSTEM;
-	if (ATTR & 2048) attr |= FILE_ATTRIBUTE_ARCHIVE;
-	if (ATTR & 8192) attr |= FILE_ATTRIBUTE_DIRECTORY;
-	if (ATTR & 1024) attr |= FILE_ATTRIBUTE_REPARSE_POINT;
-	return attr;
-}
-
 unsigned long long chtime(unsigned long long filenameindex, unsigned long long time, unsigned ch, KMCSpaceFS KMCSFS)
 { // 24 bytes per file
 	unsigned o = 0;
@@ -247,12 +233,11 @@ unsigned long chwinattrs(unsigned long long filenameindex, unsigned long winattr
 { // Last four bytes of fileinfo
 	if (!winattrs)
 	{
-		winattrs = (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 7] & 0xff) << 24 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 8] & 0xff) << 16 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 9] & 0xff) << 8 | KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 10] & 0xff;
-		return ATTRtoattr(winattrs);
+		winattrs = (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 7] & 0xff) << 24 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 8] & 0xff) << 16 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 9] & 0xff) << 8 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 10] & 0xff);
+		return winattrs;
 	}
 	else
 	{
-		winattrs = attrtoATTR(winattrs);
 		KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 7] = (winattrs >> 24) & 0xff;
 		KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 8] = (winattrs >> 16) & 0xff;
 		KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 9] = (winattrs >> 8) & 0xff;
@@ -400,14 +385,14 @@ unsigned long long get_file_size(unsigned long long index, KMCSpaceFS KMCSFS)
 	return filesize;
 }
 
-NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read, PFILE_OBJECT file_object)
+int read_file(KMCSpaceFS KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read)
 {
 	unsigned long long loc = 0;
 	if (index)
 	{
-		for (unsigned long long i = 0; i < fcb->Vcb->vde->pdode->KMCSFS.tablestrlen; i++)
+		for (unsigned long long i = 0; i < KMCSFS.tablestrlen; i++)
 		{
-			if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *".")
+			if (KMCSFS.tablestr[i] == *".")
 			{
 				loc++;
 				if (loc == index)
@@ -420,19 +405,19 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 	}
 
 	bool locked = false;
-	uint8_t* buf = kzalloc(sector_align(length, fcb->Vcb->vde->pdode->KMCSFS.sectorsize), GFP_KERNEL);
+	uint8_t* buf = kzalloc(sector_align(length, KMCSFS.sectorsize), GFP_KERNEL);
 	if (!buf)
 	{
-		if (sector_align(length, fcb->Vcb->vde->pdode->KMCSFS.sectorsize) <= fcb->Vcb->vde->pdode->KMCSFS.sectorsize)
+		if (sector_align(length, KMCSFS.sectorsize) <= KMCSFS.sectorsize)
 		{
 			locked = true;
-			//ExAcquireResourceExclusiveLite(fcb->Vcb->vde->pdode->KMCSFS.readbuflock, true);
-			buf = fcb->Vcb->vde->pdode->KMCSFS.readbuf;
+			read_lock(KMCSFS.readbuflock);
+			buf = KMCSFS.readbuf;
 		}
 		else
 		{
 			pr_err("out of memory\n");
-			return STATUS_INSUFFICIENT_RESOURCES;
+			return -ENOMEM;
 		}
 	}
 
@@ -446,9 +431,9 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 	unsigned long long int3 = 0;
 	unsigned long long filesize = 0;
 
-	for (unsigned long long i = loc; i < fcb->Vcb->vde->pdode->KMCSFS.tablestrlen; i++)
+	for (unsigned long long i = loc; i < KMCSFS.tablestrlen; i++)
 	{
-		if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *"," || fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *".")
+		if (KMCSFS.tablestr[i] == *"," || KMCSFS.tablestr[i] == *".")
 		{
 			if (notzero)
 			{
@@ -456,23 +441,23 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 				{
 					for (unsigned long long o = 0; o < int0 - int3; o++)
 					{
-						filesize += fcb->Vcb->vde->pdode->KMCSFS.sectorsize;
+						filesize += KMCSFS.sectorsize;
 						if (filesize > start)
 						{
 							if (init)
 							{
-								sync_read_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - (int3 + o) * fcb->Vcb->vde->pdode->KMCSFS.sectorsize + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize) - (start % 512), min(sector_align(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize) - (start % 512), true);
-								memcpy(data, buf + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length));
-								*bytes_read += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
-								start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
+								sync_read_phys(file_object->DeviceObject, file_object, KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize + (start % KMCSFS.sectorsize) - (start % 512), min(sector_align(KMCSFS.sectorsize - start % KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % KMCSFS.sectorsize) - (start % 512), true);
+								memcpy(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
+								*bytes_read += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
+								start += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 								init = false;
 							}
 							else
 							{
-								sync_read_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - (int3 + o) * fcb->Vcb->vde->pdode->KMCSFS.sectorsize, fcb->Vcb->vde->pdode->KMCSFS.sectorsize, buf, true);
-								memcpy(data + *bytes_read, buf, min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read));
-								start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read);
-								*bytes_read += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read);
+								sync_read_phys(file_object->DeviceObject, file_object, KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize, KMCSFS.sectorsize, buf, true);
+								memcpy(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
+								start += min(KMCSFS.sectorsize, length - *bytes_read);
+								*bytes_read += min(KMCSFS.sectorsize, length - *bytes_read);
 							}
 						}
 					}
@@ -480,23 +465,23 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 				switch (cur)
 				{
 				case 0:
-					filesize += fcb->Vcb->vde->pdode->KMCSFS.sectorsize;
+					filesize += KMCSFS.sectorsize;
 					if (filesize > start)
 					{
 						if (init)
 						{
-							sync_read_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - int0 * fcb->Vcb->vde->pdode->KMCSFS.sectorsize + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize) - (start % 512), min(sector_align(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize) - (start % 512), true);
-							memcpy(data, buf + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length));
-							*bytes_read += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
-							start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
+							sync_read_phys(file_object->DeviceObject, file_object, KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + (start % KMCSFS.sectorsize) - (start % 512), min(sector_align(KMCSFS.sectorsize - start % KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % KMCSFS.sectorsize) - (start % 512), true);
+							memcpy(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
+							*bytes_read += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
+							start += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 							init = false;
 						}
 						else
 						{
-							sync_read_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - int0 * fcb->Vcb->vde->pdode->KMCSFS.sectorsize, fcb->Vcb->vde->pdode->KMCSFS.sectorsize, buf, true);
-							memcpy(data + *bytes_read, buf, min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read));
-							start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read);
-							*bytes_read += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - *bytes_read);
+							sync_read_phys(file_object->DeviceObject, file_object, KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize, KMCSFS.sectorsize, buf, true);
+							memcpy(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
+							start += min(KMCSFS.sectorsize, length - *bytes_read);
+							*bytes_read += min(KMCSFS.sectorsize, length - *bytes_read);
 						}
 					}
 					break;
@@ -506,10 +491,10 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 					filesize += int2 - int1;
 					if (filesize > start)
 					{
-						sync_read_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - int0 * fcb->Vcb->vde->pdode->KMCSFS.sectorsize + int1 - int1 % 512, sector_align(int2 - int1 + int1 % 512, 512), buf + int1 - int1 % 512, true);
+						sync_read_phys(file_object->DeviceObject, file_object, KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1 - int1 % 512, sector_align(int2 - int1 + int1 % 512, 512), buf + int1 - int1 % 512, true);
 						if (init)
 						{
-							memcpy(data, buf + int1 + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(int2 - int1, length));
+							memcpy(data, buf + int1 + (start % KMCSFS.sectorsize), min(int2 - int1, length));
 							start += min(int2 - int1, length);
 							*bytes_read += min(int2 - int1, length);
 							init = false;
@@ -528,13 +513,13 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 			{
 				if (locked)
 				{
-					//ExReleaseResourceLite(fcb->Vcb->vde->pdode->KMCSFS.readbuflock);
+					read_unlock(KMCSFS.readbuflock);
 				}
 				else
 				{
 					kfree(buf);
 				}
-				return STATUS_SUCCESS;
+				return 0;
 			}
 			cur = 0;
 			int0 = 0;
@@ -542,16 +527,16 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 			int2 = 0;
 			int3 = 0;
 			multisector = false;
-			if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *".")
+			if (KMCSFS.tablestr[i] == *".")
 			{
 				break;
 			}
 		}
-		else if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *";")
+		else if (KMCSFS.tablestr[i] == *";")
 		{
 			cur++;
 		}
-		else if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *"-")
+		else if (KMCSFS.tablestr[i] == *"-")
 		{
 			int3 = int0;
 			multisector = true;
@@ -566,22 +551,22 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 			switch (cur)
 			{
 			case 0:
-				int0 += toint(fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] & 0xff);
-				if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *";" && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"," && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"." && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"-")
+				int0 += toint(KMCSFS.tablestr[i] & 0xff);
+				if (KMCSFS.tablestr[i + 1] != *";" && KMCSFS.tablestr[i + 1] != *"," && KMCSFS.tablestr[i + 1] != *"." && KMCSFS.tablestr[i + 1] != *"-")
 				{
 					int0 *= 10;
 				}
 				break;
 			case 1:
-				int1 += toint(fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] & 0xff);
-				if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *";" && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"," && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"." && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"-")
+				int1 += toint(KMCSFS.tablestr[i] & 0xff);
+				if (KMCSFS.tablestr[i + 1] != *";" && KMCSFS.tablestr[i + 1] != *"," && KMCSFS.tablestr[i + 1] != *"." && KMCSFS.tablestr[i + 1] != *"-")
 				{
 					int1 *= 10;
 				}
 				break;
 			case 2:
-				int2 += toint(fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] & 0xff);
-				if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *";" && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"," && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"." && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"-")
+				int2 += toint(KMCSFS.tablestr[i] & 0xff);
+				if (KMCSFS.tablestr[i + 1] != *";" && KMCSFS.tablestr[i + 1] != *"," && KMCSFS.tablestr[i + 1] != *"." && KMCSFS.tablestr[i + 1] != *"-")
 				{
 					int2 *= 10;
 				}
@@ -591,23 +576,23 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 	}
 	if (locked)
 	{
-		//ExReleaseResourceLite(fcb->Vcb->vde->pdode->KMCSFS.readbuflock);
+		read_unlock(KMCSFS.readbuflock);
 	}
 	else
 	{
 		kfree(buf);
 	}
-	return STATUS_SUCCESS;
+	return 0;
 }
 
-NTSTATUS write_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long size, PFILE_OBJECT file_object)
+int write_file(KMCSpaceFS KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long size)
 {
 	unsigned long long loc = 0;
 	if (index)
 	{
-		for (unsigned long long i = 0; i < fcb->Vcb->vde->pdode->KMCSFS.tablestrlen; i++)
+		for (unsigned long long i = 0; i < KMCSFS.tablestrlen; i++)
 		{
-			if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *".")
+			if (KMCSFS.tablestr[i] == *".")
 			{
 				loc++;
 				if (loc == index)
@@ -630,9 +615,9 @@ NTSTATUS write_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned 
 	unsigned long long filesize = 0;
 	unsigned long long bytes_written = 0;
 
-	for (unsigned long long i = loc; i < fcb->Vcb->vde->pdode->KMCSFS.tablestrlen; i++)
+	for (unsigned long long i = loc; i < KMCSFS.tablestrlen; i++)
 	{
-		if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *"," || fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *".")
+		if (KMCSFS.tablestr[i] == *"," || KMCSFS.tablestr[i] == *".")
 		{
 			if (notzero)
 			{
@@ -640,21 +625,21 @@ NTSTATUS write_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned 
 				{
 					for (unsigned long long o = 0; o < int0 - int3; o++)
 					{
-						filesize += fcb->Vcb->vde->pdode->KMCSFS.sectorsize;
+						filesize += KMCSFS.sectorsize;
 						if (filesize > start)
 						{
 							if (init)
 							{
-								sync_write_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - (int3 + o) * fcb->Vcb->vde->pdode->KMCSFS.sectorsize + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length), data, true);
-								bytes_written += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
-								start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
+								sync_write_phys(file_object->DeviceObject, file_object, KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length), data, true);
+								bytes_written += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
+								start += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 								init = false;
 							}
 							else
 							{
-								sync_write_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - (int3 + o) * fcb->Vcb->vde->pdode->KMCSFS.sectorsize, min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - bytes_written), data + bytes_written, true);
-								start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - bytes_written);
-								bytes_written += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - bytes_written);
+								sync_write_phys(file_object->DeviceObject, file_object, KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize, min(KMCSFS.sectorsize, length - bytes_written), data + bytes_written, true);
+								start += min(KMCSFS.sectorsize, length - bytes_written);
+								bytes_written += min(KMCSFS.sectorsize, length - bytes_written);
 							}
 						}
 					}
@@ -662,21 +647,21 @@ NTSTATUS write_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned 
 				switch (cur)
 				{
 				case 0:
-					filesize += fcb->Vcb->vde->pdode->KMCSFS.sectorsize;
+					filesize += KMCSFS.sectorsize;
 					if (filesize > start)
 					{
 						if (init)
 						{
-							sync_write_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - int0 * fcb->Vcb->vde->pdode->KMCSFS.sectorsize + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length), data, true);
-							bytes_written += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
-							start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
+							sync_write_phys(file_object->DeviceObject, file_object, KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length), data, true);
+							bytes_written += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
+							start += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 							init = false;
 						}
 						else
 						{
-							sync_write_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - int0 * fcb->Vcb->vde->pdode->KMCSFS.sectorsize, min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - bytes_written), data + bytes_written, true);
-							start += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - bytes_written);
-							bytes_written += min(fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length - bytes_written);
+							sync_write_phys(file_object->DeviceObject, file_object, KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize, min(KMCSFS.sectorsize, length - bytes_written), data + bytes_written, true);
+							start += min(KMCSFS.sectorsize, length - bytes_written);
+							bytes_written += min(KMCSFS.sectorsize, length - bytes_written);
 						}
 					}
 					break;
@@ -688,14 +673,14 @@ NTSTATUS write_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned 
 					{
 						if (init)
 						{
-							sync_write_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - int0 * fcb->Vcb->vde->pdode->KMCSFS.sectorsize + int1 + (start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize), min(int2 - int1 - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length), data, true);
-							start += min(int2 - int1 - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
-							bytes_written += min(int2 - int1 - start % fcb->Vcb->vde->pdode->KMCSFS.sectorsize, length);
+							sync_write_phys(file_object->DeviceObject, file_object, KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1 + (start % KMCSFS.sectorsize), min(int2 - int1 - start % KMCSFS.sectorsize, length), data, true);
+							start += min(int2 - int1 - start % KMCSFS.sectorsize, length);
+							bytes_written += min(int2 - int1 - start % KMCSFS.sectorsize, length);
 							init = false;
 						}
 						else
 						{
-							sync_write_phys(file_object->DeviceObject, file_object, fcb->Vcb->vde->pdode->KMCSFS.size - fcb->Vcb->vde->pdode->KMCSFS.sectorsize - int0 * fcb->Vcb->vde->pdode->KMCSFS.sectorsize + int1, min(int2 - int1, length - bytes_written), data + bytes_written, true);
+							sync_write_phys(file_object->DeviceObject, file_object, KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1, min(int2 - int1, length - bytes_written), data + bytes_written, true);
 							start += min(int2 - int1, length - bytes_written);
 							bytes_written += min(int2 - int1, length - bytes_written);
 						}
@@ -705,7 +690,7 @@ NTSTATUS write_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned 
 			}
 			if (bytes_written == length)
 			{
-				return STATUS_SUCCESS;
+				return 0;
 			}
 			cur = 0;
 			int0 = 0;
@@ -713,16 +698,16 @@ NTSTATUS write_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned 
 			int2 = 0;
 			int3 = 0;
 			multisector = false;
-			if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *".")
+			if (KMCSFS.tablestr[i] == *".")
 			{
 				break;
 			}
 		}
-		else if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *";")
+		else if (KMCSFS.tablestr[i] == *";")
 		{
 			cur++;
 		}
-		else if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] == *"-")
+		else if (KMCSFS.tablestr[i] == *"-")
 		{
 			int3 = int0;
 			multisector = true;
@@ -737,22 +722,22 @@ NTSTATUS write_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned 
 			switch (cur)
 			{
 			case 0:
-				int0 += toint(fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] & 0xff);
-				if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *";" && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"," && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"." && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"-")
+				int0 += toint(KMCSFS.tablestr[i] & 0xff);
+				if (KMCSFS.tablestr[i + 1] != *";" && KMCSFS.tablestr[i + 1] != *"," && KMCSFS.tablestr[i + 1] != *"." && KMCSFS.tablestr[i + 1] != *"-")
 				{
 					int0 *= 10;
 				}
 				break;
 			case 1:
-				int1 += toint(fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] & 0xff);
-				if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *";" && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"," && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"." && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"-")
+				int1 += toint(KMCSFS.tablestr[i] & 0xff);
+				if (KMCSFS.tablestr[i + 1] != *";" && KMCSFS.tablestr[i + 1] != *"," && KMCSFS.tablestr[i + 1] != *"." && KMCSFS.tablestr[i + 1] != *"-")
 				{
 					int1 *= 10;
 				}
 				break;
 			case 2:
-				int2 += toint(fcb->Vcb->vde->pdode->KMCSFS.tablestr[i] & 0xff);
-				if (fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *";" && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"," && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"." && fcb->Vcb->vde->pdode->KMCSFS.tablestr[i + 1] != *"-")
+				int2 += toint(KMCSFS.tablestr[i] & 0xff);
+				if (KMCSFS.tablestr[i + 1] != *";" && KMCSFS.tablestr[i + 1] != *"," && KMCSFS.tablestr[i + 1] != *"." && KMCSFS.tablestr[i + 1] != *"-")
 				{
 					int2 *= 10;
 				}
@@ -760,7 +745,7 @@ NTSTATUS write_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned 
 			}
 		}
 	}
-	return STATUS_SUCCESS;
+	return 0;
 }
 
 static bool is_table_expandable(KMCSpaceFS KMCSFS, unsigned long long newsize)
@@ -848,127 +833,122 @@ static bool is_table_expandable(KMCSpaceFS KMCSFS, unsigned long long newsize)
 	return KMCSFS.size / KMCSFS.sectorsize - nearestsector > sector_align(newsize, KMCSFS.sectorsize) / KMCSFS.sectorsize;
 }
 
-NTSTATUS create_file(PIRP Irp, device_extension* Vcb, PFILE_OBJECT FileObject, UNICODE_STRING fn)
+int create_file(KMCSpaceFS KMCSFS, UNICODE_STRING fn, unsigned long gid, unsigned long uid, unsigned long mode)
 {
-	PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-
 	if ((fn.Buffer[fn.Length / sizeof(WCHAR) - 1] & 0xff) == 0)
 	{
 		fn.Length -= sizeof(WCHAR);
 	}
 
-	if (!is_table_expandable(Vcb->vde->pdode->KMCSFS, Vcb->vde->pdode->KMCSFS.filenamesend + 2 + fn.Length / sizeof(WCHAR) + 1 + 35 * (Vcb->vde->pdode->KMCSFS.filecount + 1)))
+	if (!is_table_expandable(KMCSFS, KMCSFS.filenamesend + 2 + fn.Length / sizeof(WCHAR) + 1 + 35 * (KMCSFS.filecount + 1)))
 	{
 		pr_err("table is not expandable\n");
-		return STATUS_DISK_FULL;
+		return -ENOSPC;
 	}
 
-	char* newtablestr = kzalloc(Vcb->vde->pdode->KMCSFS.tablestrlen + 2, GFP_KERNEL);
+	char* newtablestr = kzalloc(KMCSFS.tablestrlen + 2, GFP_KERNEL);
 	if (!newtablestr)
 	{
 		pr_err("out of memory\n");
-		return STATUS_INSUFFICIENT_RESOURCES;
+		return -ENOMEM;
 	}
 
-	memcpy(newtablestr, Vcb->vde->pdode->KMCSFS.tablestr, Vcb->vde->pdode->KMCSFS.tablestrlen);
-	if (newtablestr[Vcb->vde->pdode->KMCSFS.tablestrlen - 1] == 32)
+	memcpy(newtablestr, KMCSFS.tablestr, KMCSFS.tablestrlen);
+	if (newtablestr[KMCSFS.tablestrlen - 1] == 32)
 	{
-		newtablestr[Vcb->vde->pdode->KMCSFS.tablestrlen - 1] = 46;
-		newtablestr[Vcb->vde->pdode->KMCSFS.tablestrlen] = 32;
-		newtablestr[Vcb->vde->pdode->KMCSFS.tablestrlen + 1] = 0;
+		newtablestr[KMCSFS.tablestrlen - 1] = 46;
+		newtablestr[KMCSFS.tablestrlen] = 32;
+		newtablestr[KMCSFS.tablestrlen + 1] = 0;
 	}
 	else
 	{
-		newtablestr[Vcb->vde->pdode->KMCSFS.tablestrlen] = 46;
-		newtablestr[Vcb->vde->pdode->KMCSFS.tablestrlen + 1] = 0;
-		Vcb->vde->pdode->KMCSFS.tablestrlen++;
+		newtablestr[KMCSFS.tablestrlen] = 46;
+		newtablestr[KMCSFS.tablestrlen + 1] = 0;
+		KMCSFS.tablestrlen++;
 	}
 
-	char* newtable = kzalloc(5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (Vcb->vde->pdode->KMCSFS.filecount + 1), GFP_KERNEL);
+	char* newtable = kzalloc(5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (KMCSFS.filecount + 1), GFP_KERNEL);
 	if (!newtable)
 	{
 		pr_err("out of memory\n");
 		kfree(newtablestr);
-		return STATUS_INSUFFICIENT_RESOURCES;
+		return -ENOMEM;
 	}
-	memset(newtable, 0, 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (Vcb->vde->pdode->KMCSFS.filecount + 1));
+	memset(newtable, 0, 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (KMCSFS.filecount + 1));
 
-	char* newtablestren = encode(newtablestr, Vcb->vde->pdode->KMCSFS.tablestrlen);
+	char* newtablestren = encode(newtablestr, KMCSFS.tablestrlen);
 	if (!newtablestren)
 	{
 		pr_err("out of memory\n");
 		kfree(newtablestr);
 		kfree(newtable);
-		return STATUS_INSUFFICIENT_RESOURCES;
+		return -ENOMEM;
 	}
 
-	kfree(Vcb->vde->pdode->KMCSFS.tablestr);
-	Vcb->vde->pdode->KMCSFS.tablestr = newtablestr;
+	kfree(KMCSFS.tablestr);
+	KMCSFS.tablestr = newtablestr;
 
-	newtable[0] = Vcb->vde->pdode->KMCSFS.table[0];
-	unsigned long long extratablesize = 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 2 + fn.Length / sizeof(WCHAR) + 1 + 35 * (Vcb->vde->pdode->KMCSFS.filecount + 1);
-	unsigned long long tablesize = (extratablesize + Vcb->vde->pdode->KMCSFS.sectorsize - 1) / Vcb->vde->pdode->KMCSFS.sectorsize - 1;
+	newtable[0] = KMCSFS.table[0];
+	unsigned long long extratablesize = 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 2 + fn.Length / sizeof(WCHAR) + 1 + 35 * (KMCSFS.filecount + 1);
+	unsigned long long tablesize = (extratablesize + KMCSFS.sectorsize - 1) / KMCSFS.sectorsize - 1;
 	newtable[1] = (tablesize >> 24) & 0xff;
 	newtable[2] = (tablesize >> 16) & 0xff;
 	newtable[3] = (tablesize >> 8) & 0xff;
 	newtable[4] = tablesize & 0xff;
-	Vcb->vde->pdode->KMCSFS.extratablesize = sector_align(extratablesize, Vcb->vde->pdode->KMCSFS.sectorsize);
-	Vcb->vde->pdode->KMCSFS.tablesize = 1 + tablesize;
+	KMCSFS.extratablesize = sector_align(extratablesize, KMCSFS.sectorsize);
+	KMCSFS.tablesize = 1 + tablesize;
 
-	memcpy(newtable + 5, newtablestren, (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2);
+	memcpy(newtable + 5, newtablestren, (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2);
 	kfree(newtablestren);
 
-	memcpy(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2, Vcb->vde->pdode->KMCSFS.table + Vcb->vde->pdode->KMCSFS.tableend, Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend);
+	memcpy(newtable + 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2, KMCSFS.table + KMCSFS.tableend, KMCSFS.filenamesend - KMCSFS.tableend);
 
-	newtable[5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend] = 255;
+	newtable[5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend] = 255;
 	for (unsigned long long i = 0; i < fn.Length / sizeof(WCHAR); i++)
 	{
-		newtable[5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + i] = ((fn.Buffer[i] & 0xff) == 92) ? 47 : fn.Buffer[i] & 0xff;
+		newtable[5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + i] = ((fn.Buffer[i] & 0xff) == 92) ? 47 : fn.Buffer[i] & 0xff;
 	}
-	newtable[5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR)] = 255;
-	newtable[5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 1] = 254;
+	newtable[5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR)] = 255;
+	newtable[5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 1] = 254;
 
-	memcpy(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2, Vcb->vde->pdode->KMCSFS.table + Vcb->vde->pdode->KMCSFS.filenamesend + 2, 24 * Vcb->vde->pdode->KMCSFS.filecount);
-	memcpy(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (Vcb->vde->pdode->KMCSFS.filecount + 1), Vcb->vde->pdode->KMCSFS.table + Vcb->vde->pdode->KMCSFS.filenamesend + 2 + 24 * Vcb->vde->pdode->KMCSFS.filecount, 11 * Vcb->vde->pdode->KMCSFS.filecount);
+	memcpy(newtable + 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2, KMCSFS.table + KMCSFS.filenamesend + 2, 24 * KMCSFS.filecount);
+	memcpy(newtable + 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (KMCSFS.filecount + 1), KMCSFS.table + KMCSFS.filenamesend + 2 + 24 * KMCSFS.filecount, 11 * KMCSFS.filecount);
 
 	char guidmodes[11] = {0};
-	unsigned long guid = 545;
-	guidmodes[0] = (guid >> 16) & 0xff;
-	guidmodes[1] = (guid >> 8) & 0xff;
-	guidmodes[2] = guid & 0xff;
-	guidmodes[3] = (guid >> 8) & 0xff;
-	guidmodes[4] = guid & 0xff;
-	unsigned long mode = 448 + 16429 * (IrpSp->Parameters.Create.FileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+	guidmodes[0] = (gid >> 16) & 0xff;
+	guidmodes[1] = (gid >> 8) & 0xff;
+	guidmodes[2] = gid & 0xff;
+	guidmodes[3] = (uid >> 8) & 0xff;
+	guidmodes[4] = uid & 0xff;
 	guidmodes[5] = (mode >> 8) & 0xff;
 	guidmodes[6] = mode & 0xff;
-	unsigned long winattrs = 2048 | attrtoATTR(IrpSp->Parameters.Create.FileAttributes);
+	unsigned long winattrs = 2048;
 	guidmodes[7] = (winattrs >> 24) & 0xff;
 	guidmodes[8] = (winattrs >> 16) & 0xff;
 	guidmodes[9] = (winattrs >> 8) & 0xff;
 	guidmodes[10] = winattrs & 0xff;
-	memcpy(newtable + 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (Vcb->vde->pdode->KMCSFS.filecount + 1) + 11 * Vcb->vde->pdode->KMCSFS.filecount, guidmodes, 11);
+	memcpy(newtable + 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (KMCSFS.filecount + 1) + 11 * KMCSFS.filecount, guidmodes, 11);
 
-	kfree(Vcb->vde->pdode->KMCSFS.table);
-	Vcb->vde->pdode->KMCSFS.table = newtable;
+	kfree(KMCSFS.table);
+	KMCSFS.table = newtable;
 
-	AddDictEntry(&Vcb->vde->pdode->KMCSFS.dict, fn.Buffer, Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1, fn.Length / sizeof(WCHAR), &Vcb->vde->pdode->KMCSFS.CurDictSize, &Vcb->vde->pdode->KMCSFS.DictSize, Vcb->vde->pdode->KMCSFS.filecount, false);
+	AddDictEntry(&KMCSFS.dict, fn.Buffer, KMCSFS.filenamesend - KMCSFS.tableend + 1, fn.Length / sizeof(WCHAR), &KMCSFS.CurDictSize, &KMCSFS.DictSize, KMCSFS.filecount, false);
 
-	Vcb->vde->pdode->KMCSFS.filenamesend = 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR);
-	Vcb->vde->pdode->KMCSFS.tableend = 5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2;
+	KMCSFS.filenamesend = 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR);
+	KMCSFS.tableend = 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2;
 
-	LARGE_INTEGER time;
-	KeQuerySystemTime(&time);
-	chtime(Vcb->vde->pdode->KMCSFS.filecount, time.QuadPart, 5, Vcb->vde->pdode->KMCSFS);
-	chtime(Vcb->vde->pdode->KMCSFS.filecount, time.QuadPart, 1, Vcb->vde->pdode->KMCSFS);
-	chtime(Vcb->vde->pdode->KMCSFS.filecount, time.QuadPart, 3, Vcb->vde->pdode->KMCSFS);
+	ktime_t time = ktime_get();
+	chtime(KMCSFS.filecount, time, 5, KMCSFS);
+	chtime(KMCSFS.filecount, time, 1, KMCSFS);
+	chtime(KMCSFS.filecount, time, 3, KMCSFS);
 
-	Vcb->vde->pdode->KMCSFS.filecount++;
-	sync_write_phys(FileObject->DeviceObject, FileObject, 0, Vcb->vde->pdode->KMCSFS.filenamesend + 2 + 35 * Vcb->vde->pdode->KMCSFS.filecount, newtable, true);
+	KMCSFS.filecount++;
+	sync_write_phys(FileObject->DeviceObject, FileObject, 0, KMCSFS.filenamesend + 2 + 35 * KMCSFS.filecount, newtable, true);
 
-	return STATUS_SUCCESS;
+	return 0;
 }
 
-dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, unsigned long long newsize)
+void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, unsigned long long newsize)
 {
 	if (size > newsize)
 	{
@@ -1151,7 +1131,7 @@ dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, u
 	}
 }
 
-bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, PFILE_OBJECT FileObject)
+bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size)
 {
 	if (size)
 	{
@@ -1289,7 +1269,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 			}
 		}
 
-		PUCHAR tempdata = NULL;
+		unsigned char* tempdata = NULL;
 		unsigned long long newoffset = 0;
 		unsigned long long cursector = 0;
 		unsigned long long blocksneeded = (size + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize;
@@ -1623,7 +1603,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 								sprintf(num3, "%llu", offset);
 								unsigned num3len = strlen(num3);
 								memcpy(newtable + loc + 1 + num1len + 1 + num2len + 1, num3, num3len);
-								mmecpy(newtable + loc + 1 + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+								memcpy(newtable + loc + 1 + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
 								kfree(KMCSFS->tablestr);
 								KMCSFS->tablestr = newtable;
 								KMCSFS->tablestrlen += num1len + 1 + num2len + 1 + num3len + 1;
@@ -1651,7 +1631,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 								char num1[21] = {0};
 								sprintf(num1, "%llu", cursector);
 								unsigned num1len = strlen(num1);
-								mmecpy(newtable + loc, num1, num1len);
+								memcpy(newtable + loc, num1, num1len);
 								newtable[loc + num1len] = *";";
 								char num2[21] = {0};
 								sprintf(num2, "%llu", offset - size);
@@ -1843,7 +1823,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 	}
 }
 
-bool delete_file(KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long index, PFILE_OBJECT FileObject)
+bool delete_file(KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long index)
 {
 	char* newtable = kzalloc(KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1), GFP_KERNEL);
 	if (!newtable)
@@ -1959,7 +1939,7 @@ bool delete_file(KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long
 	return true;
 }
 
-NTSTATUS rename_file(KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn, PFILE_OBJECT FileObject)
+int rename_file(KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn)
 {
 	unsigned long long extratablesize = KMCSFS->filenamesend + 2 + 35 * KMCSFS->filecount - fn.Length / sizeof(WCHAR) + nfn.Length / sizeof(WCHAR);
 	unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
@@ -1968,7 +1948,7 @@ NTSTATUS rename_file(KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn, 
 	if (!newtable)
 	{
 		pr_err("out of memory\n");
-		return STATUS_INSUFFICIENT_RESOURCES;
+		return -ENOMEM;
 	}
 	memset(newtable, 0, extratablesize);
 
@@ -1976,14 +1956,14 @@ NTSTATUS rename_file(KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn, 
 	{
 		pr_err("table is not expandable\n");
 		kfree(newtable);
-		return STATUS_DISK_FULL;
+		return -ENOSPC;
 	}
 
 	unsigned long long index = get_filename_index(fn, KMCSFS);
 	if (!index)
 	{
 		kfree(newtable);
-		return STATUS_OBJECT_NAME_NOT_FOUND;
+		return -ENOENT;
 	}
 
 	unsigned long long loc = KMCSFS->tableend;
@@ -2051,5 +2031,5 @@ NTSTATUS rename_file(KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn, 
 
 	sync_write_phys(FileObject->DeviceObject, FileObject, 0, extratablesize, newtable, true);
 
-	return STATUS_SUCCESS;
+	return 0;
 }

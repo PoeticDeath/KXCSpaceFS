@@ -32,6 +32,6 @@ typedef struct
 	unsigned long long DictSize;
 	Dict* dict;
 	unsigned char* readbuf;
-	//PERESOURCE readbuflock;
+	rwlock_t* readbuflock;
 	unsigned char* writebuf;
 } KMCSpaceFS;
