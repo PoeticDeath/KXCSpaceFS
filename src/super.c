@@ -115,8 +115,21 @@ static int simplefs_write_inode(struct inode *inode,
 
 static void kxcspacefs_put_super(struct super_block *sb)
 {
+    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
+
     sync_blockdev(sb->s_bdev);
     invalidate_bdev(sb->s_bdev);
+
+    if (KMCSFS)
+    {
+        kfree(KMCSFS->table);
+        kfree(KMCSFS->tablestr);
+		kfree(KMCSFS->dict);
+		kfree(KMCSFS->readbuf);
+		kfree(KMCSFS->writebuf);
+        kfree(KMCSFS->readbuflock);
+        kfree(KMCSFS);
+    }
 }
 
 static int kxcspacefs_sync_fs(struct super_block *sb, int wait)
