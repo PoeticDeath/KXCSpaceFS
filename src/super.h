@@ -107,7 +107,7 @@ void kxcspacefs_kill_sb(struct super_block* sb);
 /* inode functions */
 int simplefs_init_inode_cache(void);
 void simplefs_destroy_inode_cache(void);
-struct inode *simplefs_iget(struct super_block *sb, unsigned long ino);
+struct inode* kxcspacefs_iget(struct super_block *sb, unsigned long long index);
 
 /* dentry function */
 struct dentry *kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data);

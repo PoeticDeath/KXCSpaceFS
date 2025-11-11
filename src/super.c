@@ -732,7 +732,7 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
 
     bh = NULL;
     /* Create root inode */
-    root_inode = simplefs_iget(sb, 1);
+    root_inode = kxcspacefs_iget(sb, 1);
     if (IS_ERR(root_inode))
     {
         ret = PTR_ERR(root_inode);
