@@ -1,7 +1,7 @@
 #ifndef SHA3_H
 #define SHA3_H
 
-#include <stdint.h>
+#include "cspacefs.h"
 
 /* -------------------------------------------------------------------------
  * Works when compiled for either 32-bit or 64-bit targets, optimized for 
@@ -23,15 +23,15 @@
 
 /* 'Words' here refers to uint64_t */
 #define SHA3_KECCAK_SPONGE_WORDS \
-	(((1600)/8/*bits to byte*/)/sizeof(uint64_t))
+	(((1600)/8/*bits to byte*/)/sizeof(unsigned long long))
 typedef struct sha3_context_
 {
-    uint64_t saved;             /* the portion of the input message that we
+    unsigned long long saved;             /* the portion of the input message that we
                                  * didn't consume yet */
     union
     {                           /* Keccak's state */
-        uint64_t s[SHA3_KECCAK_SPONGE_WORDS];
-        uint8_t sb[SHA3_KECCAK_SPONGE_WORDS * 8];
+        unsigned long long s[SHA3_KECCAK_SPONGE_WORDS];
+        unsigned char sb[SHA3_KECCAK_SPONGE_WORDS * 8];
     } u;
     unsigned byteIndex;         /* 0..7--the next byte after the set one
                                  * (starts from 0; 0--none are buffered) */
@@ -63,7 +63,7 @@ void sha3_Init512(void *priv);
 
 enum SHA3_FLAGS sha3_SetFlags(void *priv, enum SHA3_FLAGS);
 
-void sha3_Update(void *priv, void const *bufIn, size_t len);
+void sha3_Update(void *priv, void const *bufIn, unsigned long long len);
 
 void const *sha3_Finalize(void *priv);
 

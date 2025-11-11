@@ -16,10 +16,6 @@
  * Aug 2015. Andrey Jivsov. crypto@brainhub.org
  * ---------------------------------------------------------------------- */
 
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-
 #include "Sha3.h"
 
 #define SHA3_ASSERT( x )
@@ -41,10 +37,10 @@
 
 #ifndef SHA3_ROTL64
 #define SHA3_ROTL64(x, y) \
-	(((x) << (y)) | ((x) >> ((sizeof(uint64_t)*8) - (y))))
+	(((x) << (y)) | ((x) >> ((sizeof(unsigned long long)*8) - (y))))
 #endif
 
-static const uint64_t keccakf_rndc[24] =
+static const unsigned long long keccakf_rndc[24] =
 {
     SHA3_CONST(0x0000000000000001UL), SHA3_CONST(0x0000000000008082UL),
     SHA3_CONST(0x800000000000808aUL), SHA3_CONST(0x8000000080008000UL),
@@ -73,10 +69,10 @@ static const unsigned keccakf_piln[24] =
 /* generally called after SHA3_KECCAK_SPONGE_WORDS-ctx->capacityWords words 
  * are XORed into the state s 
  */
-static void keccakf(uint64_t s[25])
+static void keccakf(unsigned long long s[25])
 {
     int i, j, round;
-    uint64_t t, bc[5];
+    unsigned long long t, bc[5];
 #define KECCAK_ROUNDS 24
 
     for (round = 0; round < KECCAK_ROUNDS; round++)
@@ -136,7 +132,7 @@ sha3_return_t sha3_Init(void *priv, unsigned bitSize)
         return SHA3_RETURN_BAD_PARAMS;
     }
     memset(ctx, 0, sizeof(*ctx));
-    ctx->capacityWords = 2 * bitSize / (8 * sizeof(uint64_t));
+    ctx->capacityWords = 2 * bitSize / (8 * sizeof(unsigned long long));
     return SHA3_RETURN_OK;
 }
 
@@ -164,18 +160,18 @@ enum SHA3_FLAGS sha3_SetFlags(void *priv, enum SHA3_FLAGS flags)
 }
 
 
-void sha3_Update(void *priv, void const *bufIn, size_t len)
+void sha3_Update(void *priv, void const *bufIn, unsigned long long len)
 {
     sha3_context *ctx = (sha3_context *) priv;
 
     /* 0...7 -- how much is needed to have a word */
     unsigned old_tail = (8 - ctx->byteIndex) & 7;
 
-    size_t words;
+    unsigned long long words;
     unsigned tail;
-    size_t i;
+    unsigned long long i;
 
-    const uint8_t *buf = bufIn;
+    const unsigned char *buf = bufIn;
 
     SHA3_TRACE_BUF("called to update with:", buf, len);
 
@@ -188,7 +184,7 @@ void sha3_Update(void *priv, void const *bufIn, size_t len)
         /* endian-independent code follows: */
         while (len--)
         {
-            ctx->saved |= (uint64_t) (*(buf++)) << ((ctx->byteIndex++) * 8);
+            ctx->saved |= (unsigned long long) (*(buf++)) << ((ctx->byteIndex++) * 8);
         }
         SHA3_ASSERT(ctx->byteIndex < 8);
         return;
@@ -201,7 +197,7 @@ void sha3_Update(void *priv, void const *bufIn, size_t len)
         len -= old_tail;
         while (old_tail--)
         {
-            ctx->saved |= (uint64_t) (*(buf++)) << ((ctx->byteIndex++) * 8);
+            ctx->saved |= (unsigned long long) (*(buf++)) << ((ctx->byteIndex++) * 8);
         }
 
         /* now ready to add saved to the sponge */
@@ -220,14 +216,14 @@ void sha3_Update(void *priv, void const *bufIn, size_t len)
 
     SHA3_ASSERT(ctx->byteIndex == 0);
 
-    words = len / sizeof(uint64_t);
-    tail = len - words * sizeof(uint64_t);
+    words = len / sizeof(unsigned long long);
+    tail = len - words * sizeof(unsigned long long);
 
     SHA3_TRACE("have %d full words to process", (unsigned)words);
 
-    for (i = 0; i < words; i++, buf += sizeof(uint64_t))
+    for (i = 0; i < words; i++, buf += sizeof(unsigned long long))
     {
-        const uint64_t t = (uint64_t) (buf[0]) | ((uint64_t) (buf[1]) << 8 * 1) | ((uint64_t) (buf[2]) << 8 * 2) | ((uint64_t) (buf[3]) << 8 * 3) | ((uint64_t) (buf[4]) << 8 * 4) | ((uint64_t) (buf[5]) << 8 * 5) | ((uint64_t) (buf[6]) << 8 * 6) | ((uint64_t) (buf[7]) << 8 * 7);
+        const unsigned long long t = (unsigned long long) (buf[0]) | ((unsigned long long) (buf[1]) << 8 * 1) | ((unsigned long long) (buf[2]) << 8 * 2) | ((unsigned long long) (buf[3]) << 8 * 3) | ((unsigned long long) (buf[4]) << 8 * 4) | ((unsigned long long) (buf[5]) << 8 * 5) | ((unsigned long long) (buf[6]) << 8 * 6) | ((unsigned long long) (buf[7]) << 8 * 7);
 #if defined(__x86_64__ ) || defined(__i386__)
         SHA3_ASSERT(memcmp(&t, buf, 8) == 0);
 #endif
@@ -246,7 +242,7 @@ void sha3_Update(void *priv, void const *bufIn, size_t len)
     while (tail--)
     {
         SHA3_TRACE("Store byte %02x '%c'", *buf, *buf);
-        ctx->saved |= (uint64_t) (*(buf++)) << ((ctx->byteIndex++) * 8);
+        ctx->saved |= (unsigned long long) (*(buf++)) << ((ctx->byteIndex++) * 8);
     }
     SHA3_ASSERT(ctx->byteIndex < 8);
     SHA3_TRACE("Have saved=0x%016" PRIx64 " at the end", ctx->saved);
@@ -268,17 +264,17 @@ sha3_Finalize(void *priv)
      * Overall, we feed 0, then 1, and finally 1 to start padding. Without
      * M || 01, we would simply use 1 to start padding. */
 
-    uint64_t t;
+    unsigned long long t;
 
     if (ctx->capacityWords & SHA3_USE_KECCAK_FLAG)
     {
         /* Keccak version */
-        t = (uint64_t)(((uint64_t) 1) << (ctx->byteIndex * 8));
+        t = (unsigned long long)(((unsigned long long) 1) << (ctx->byteIndex * 8));
     }
     else
     {
         /* SHA3 version */
-        t = (uint64_t)(((uint64_t)(0x02 | (1 << 2))) << ((ctx->byteIndex) * 8));
+        t = (unsigned long long)(((unsigned long long)(0x02 | (1 << 2))) << ((ctx->byteIndex) * 8));
     }
 
     ctx->u.s[ctx->wordIndex] ^= ctx->saved ^ t;
@@ -295,16 +291,16 @@ sha3_Finalize(void *priv)
         unsigned i;
         for (i = 0; i < SHA3_KECCAK_SPONGE_WORDS; i++)
         {
-            const unsigned t1 = (uint32_t) ctx->u.s[i];
-            const unsigned t2 = (uint32_t) ((ctx->u.s[i] >> 16) >> 16);
-            ctx->u.sb[i * 8 + 0] = (uint8_t) (t1);
-            ctx->u.sb[i * 8 + 1] = (uint8_t) (t1 >> 8);
-            ctx->u.sb[i * 8 + 2] = (uint8_t) (t1 >> 16);
-            ctx->u.sb[i * 8 + 3] = (uint8_t) (t1 >> 24);
-            ctx->u.sb[i * 8 + 4] = (uint8_t) (t2);
-            ctx->u.sb[i * 8 + 5] = (uint8_t) (t2 >> 8);
-            ctx->u.sb[i * 8 + 6] = (uint8_t) (t2 >> 16);
-            ctx->u.sb[i * 8 + 7] = (uint8_t) (t2 >> 24);
+            const unsigned t1 = (unsigned long) ctx->u.s[i];
+            const unsigned t2 = (unsigned long) ((ctx->u.s[i] >> 16) >> 16);
+            ctx->u.sb[i * 8 + 0] = (unsigned char) (t1);
+            ctx->u.sb[i * 8 + 1] = (unsigned char) (t1 >> 8);
+            ctx->u.sb[i * 8 + 2] = (unsigned char) (t1 >> 16);
+            ctx->u.sb[i * 8 + 3] = (unsigned char) (t1 >> 24);
+            ctx->u.sb[i * 8 + 4] = (unsigned char) (t2);
+            ctx->u.sb[i * 8 + 5] = (unsigned char) (t2 >> 8);
+            ctx->u.sb[i * 8 + 6] = (unsigned char) (t2 >> 16);
+            ctx->u.sb[i * 8 + 7] = (unsigned char) (t2 >> 24);
         }
     }
 
