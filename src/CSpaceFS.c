@@ -28,7 +28,7 @@ void sync_write_phys(unsigned long long offset, unsigned long long length, char*
 
 }
 
-void init_maps()
+void init_maps(void)
 {
 	static const char charmap[] = "0123456789-,.; ";
 	unsigned p = 0;
