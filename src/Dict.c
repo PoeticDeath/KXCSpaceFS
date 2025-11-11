@@ -4,6 +4,19 @@
 #include "Dict.h"
 #include "Sha3.h"
 
+bool incmp(unsigned char a, unsigned char b)
+{
+	if (a >= 'A' && a <= 'Z')
+	{
+		a += 32;
+	}
+	if (b >= 'A' && b <= 'Z')
+	{
+		b += 32;
+	}
+	return a == b;
+}
+
 Dict* CreateDict(unsigned long long size)
 {
 	Dict* dict = kzalloc(sizeof(Dict) * size, GFP_KERNEL);

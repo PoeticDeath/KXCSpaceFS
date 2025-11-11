@@ -7,19 +7,6 @@ unsigned* emap = NULL;
 unsigned* dmap = NULL;
 long _fltused = 0;
 
-bool incmp(unsigned char a, unsigned char b)
-{
-	if (a >= 'A' && a <= 'Z')
-	{
-		a += 32;
-	}
-	if (b >= 'A' && b <= 'Z')
-	{
-		b += 32;
-	}
-	return a == b;
-}
-
 void init_maps()
 {
 	static const char charmap[] = "0123456789-,.; ";

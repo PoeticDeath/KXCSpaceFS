@@ -19,6 +19,7 @@ typedef struct _Dict
 	char* filename;
 } Dict;
 
+bool incmp(unsigned char a, unsigned char b);
 Dict* CreateDict(unsigned long long size);
 Dict* ResizeDict(Dict* dict, unsigned long long oldsize, unsigned long long* newsize);
 bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, unsigned long long filenamelen, unsigned long long* cursize, unsigned long long* size, unsigned long long index, bool scan);
