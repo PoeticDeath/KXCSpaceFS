@@ -37,7 +37,7 @@ struct inode *kxcspacefs_iget(struct super_block *sb, unsigned long long index, 
     }
 
     /* Fail if index is out of range */
-    if (index >= KMCSFS->filecount)
+    if (index >= KMCSFS->filecount || !index)
     {
         return ERR_PTR(-EINVAL);
     }
@@ -119,73 +119,37 @@ failed:
  * Returns NULL on success, indicating the dentry was successfully filled or
  * confirmed absent.
  */
-static struct dentry *simplefs_lookup(struct inode *dir,
-                                      struct dentry *dentry,
-                                      unsigned int flags)
+static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry, unsigned int flags)
 {
     struct super_block *sb = dir->i_sb;
-    struct simplefs_inode_info *ci_dir = SIMPLEFS_INODE(dir);
+    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
     struct inode *inode = NULL;
-    struct buffer_head *bh = NULL, *bh2 = NULL;
-    struct simplefs_file_ei_block *eblock = NULL;
-    struct simplefs_dir_block *dblock = NULL;
-    struct simplefs_file *f = NULL;
-    int ei, bi, fi;
 
     /* Check filename length */
     if (dentry->d_name.len > SIMPLEFS_FILENAME_LEN)
+    {
         return ERR_PTR(-ENAMETOOLONG);
-
-    /* Read the directory block on disk */
-    bh = sb_bread(sb, ci_dir->ei_block);
-    if (!bh)
-        return ERR_PTR(-EIO);
-    eblock = (struct simplefs_file_ei_block *) bh->b_data;
+    }
 
     /* Search for the file in directory */
-    for (ei = 0; ei < SIMPLEFS_MAX_EXTENTS; ei++) {
-        if (!eblock->extents[ei].ee_start)
-            break;
-
-        /* Iterate blocks in extent */
-        for (bi = 0; bi < eblock->extents[ei].ee_len; bi++) {
-            bh2 = sb_bread(sb, eblock->extents[ei].ee_start + bi);
-            if (!bh2)
-                return ERR_PTR(-EIO);
-
-            dblock = (struct simplefs_dir_block *) bh2->b_data;
-
-            /* Search file in ei_block */
-            for (fi = 0; fi < dblock->nr_files;) {
-                f = &dblock->files[fi];
-                if (!f->inode) {
-                    brelse(bh2);
-                    goto search_end;
-                }
-                if (!strncmp(f->filename, dentry->d_name.name,
-                             SIMPLEFS_FILENAME_LEN)) {
-                    //inode = simplefs_iget(sb, f->inode);
-                    brelse(bh2);
-                    goto search_end;
-                }
-                fi += dblock->files[fi].nr_blk;
-            }
-            brelse(bh2);
-            bh2 = NULL;
-        }
+    UNICODE_STRING fn;
+    fn.Buffer = dentry->d_name.name;
+    fn.Length = dentry->d_name.len;
+    inode = kxcspacefs_iget(sb, 0, &fn);
+    if (IS_ERR(inode))
+    {
+        return ERR_PTR(inode);
     }
 
 search_end:
-    brelse(bh);
-    bh = NULL;
     /* Update directory access time */
-#if SIMPLEFS_AT_LEAST(6, 7, 0)
+/*#if SIMPLEFS_AT_LEAST(6, 7, 0)
     inode_set_atime_to_ts(dir, current_time(dir));
 #else
     dir->i_atime = current_time(dir);
 #endif
 
-    mark_inode_dirty(dir);
+    mark_inode_dirty(dir);*/
 
     /* Fill the dentry with the inode */
     d_add(dentry, inode);
@@ -1172,7 +1136,7 @@ static const char *simplefs_get_link(struct dentry *dentry,
 }
 
 static const struct inode_operations simplefs_inode_ops = {
-    .lookup = simplefs_lookup,
+    .lookup = kxcspacefs_lookup,
     .create = simplefs_create,
     .unlink = simplefs_unlink,
     .mkdir = simplefs_mkdir,
