@@ -260,6 +260,52 @@ unsigned long long chtime(unsigned long long filenameindex, unsigned long long t
 	}
 }
 
+unsigned long chgid(unsigned long long filenameindex, unsigned long gid, KMCSpaceFS KMCSFS)
+{ // First three bytes after times
+	if (!gid)
+	{
+		gid = (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11] & 0xff) << 16 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 1] & 0xff) << 8 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 2] & 0xff);
+		return gid;
+	}
+	else
+	{
+		KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11] = (gid >> 16) & 0xff;
+		KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 1] = (gid >> 8) & 0xff;
+		KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 2] = gid & 0xff;
+		return 0;
+	}
+}
+
+unsigned long chuid(unsigned long long filenameindex, unsigned long uid, KMCSpaceFS KMCSFS)
+{ // Next two bytes
+	if (!uid)
+	{
+		uid = (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 3] & 0xff) << 8 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 4] & 0xff);
+		return uid;
+	}
+	else
+	{
+		KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 3] = (uid >> 8) & 0xff;
+		KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 4] = uid & 0xff;
+		return 0;
+	}
+}
+
+unsigned long chmode(unsigned long long filenameindex, unsigned long mode, KMCSpaceFS KMCSFS)
+{ // Next two bytes
+	if (!mode)
+	{
+		mode = (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 5] & 0xff) << 8 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 6] & 0xff);
+		return mode;
+	}
+	else
+	{
+		KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 5] = (mode >> 8) & 0xff;
+		KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 6] = mode & 0xff;
+		return 0;
+	}
+}
+
 unsigned long chwinattrs(unsigned long long filenameindex, unsigned long winattrs, KMCSpaceFS KMCSFS)
 { // Last four bytes of fileinfo
 	if (!winattrs)

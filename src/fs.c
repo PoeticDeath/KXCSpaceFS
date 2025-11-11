@@ -4,12 +4,14 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
+#include "Dict.h"
+#include "cspacefs.h"
 #include "super.h"
 
 /* Mount a kxcspacefs partition */
 struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data)
 {
-    struct dentry *dentry = mount_bdev(fs_type, flags, dev_name, data, simplefs_fill_super);
+    struct dentry *dentry = mount_bdev(fs_type, flags, dev_name, data, kxcspacefs_fill_super);
     if (IS_ERR(dentry))
     {
         pr_err("'%s' mount failure\n", dev_name);
@@ -41,6 +43,7 @@ static struct file_system_type kxcspacefs_file_system_type = {
 
 static int __init kxcspacefs_init(void)
 {
+    init_maps();
     int ret = simplefs_init_inode_cache();
     if (ret)
     {
@@ -62,6 +65,8 @@ err_inode:
     simplefs_destroy_inode_cache();
     /* Only after rcu_barrier() is the memory guaranteed to be freed. */
     rcu_barrier();
+    kfree(emap);
+    kfree(dmap);
 err:
     return ret;
 }
@@ -77,6 +82,8 @@ static void __exit kxcspacefs_exit(void)
     simplefs_destroy_inode_cache();
     /* Only after rcu_barrier() is the memory guaranteed to be freed. */
     rcu_barrier();
+    kfree(emap);
+    kfree(dmap);
 
     pr_info("module unloaded\n");
 }

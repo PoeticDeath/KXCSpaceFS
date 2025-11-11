@@ -12,6 +12,8 @@
 #include <linux/namei.h>
 #include <linux/parser.h>
 
+#include "Dict.h"
+#include "cspacefs.h"
 #include "super.h"
 
 struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data);
@@ -526,105 +528,164 @@ static struct super_operations simplefs_super_ops = {
 };
 
 /* Fill the struct superblock from partition superblock */
-int simplefs_fill_super(struct super_block *sb, void *data, int silent)
+int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
 {
-    struct buffer_head *bh = NULL;
-    struct simplefs_sb_info *csb = NULL;
-    struct simplefs_sb_info *sbi = NULL;
-    struct inode *root_inode = NULL;
-    int ret = 0, i;
+    struct buffer_head* bh = NULL;
+    struct inode* root_inode = NULL;
+    int ret = 0;
 
     /* Initialize the superblock */
-    sb->s_magic = SIMPLEFS_MAGIC;
-    sb_set_blocksize(sb, SIMPLEFS_BLOCK_SIZE);
-    sb->s_maxbytes = SIMPLEFS_MAX_FILESIZE;
+    sb_set_blocksize(sb, 512);
+    sb->s_maxbytes = LLONG_MAX;
     sb->s_op = &simplefs_super_ops;
 
     /* Read the superblock from disk */
     bh = sb_bread(sb, SIMPLEFS_SB_BLOCK_NR);
     if (!bh)
+    {
         return -EIO;
-
-    csb = (struct simplefs_sb_info *) bh->b_data;
-
-    /* Check magic number */
-    if (csb->magic != sb->s_magic) {
-        pr_err("Wrong magic number\n");
-        ret = -EINVAL;
-        goto release;
     }
 
-    /* Allocate sb_info */
-    sbi = kzalloc(sizeof(struct simplefs_sb_info), GFP_KERNEL);
-    if (!sbi) {
+    /* Read table */
+    bool found = false;
+    KMCSpaceFS* KMCSFS = kzalloc(sizeof(KMCSpaceFS), GFP_KERNEL);
+    if (!KMCSFS)
+    {
         ret = -ENOMEM;
         goto release;
     }
+    KMCSFS->sectorsize = 1 << (9 + (bh->b_data[0] & 0xff));
+    KMCSFS->tablesize = 1 + (bh->b_data[4] & 0xff) + ((bh->b_data[3] & 0xff) << 8) + ((bh->b_data[2] & 0xff) << 16) + ((bh->b_data[1] & 0xff) << 24);
+    KMCSFS->extratablesize = (unsigned long long)KMCSFS->sectorsize * KMCSFS->tablesize;
+    KMCSFS->size = sb->s_bdev->bd_nr_sectors * 512;
+    KMCSFS->used_blocks = 0;
+    KMCSFS->table = kzalloc(KMCSFS->extratablesize, GFP_KERNEL);
+    if (!KMCSFS->table)
+    {
+        ret = -ENOMEM;
+        goto free_kmcsfs;
+    }
+    sync_read_phys(0, KMCSFS->extratablesize, KMCSFS->table, sb->s_bdev);
+    if (!memcmp(bh->b_data, KMCSFS->table, 512))
+    {
+        KMCSFS->filenamesend = 5;
+		KMCSFS->tableend = 0;
+		KMCSFS->filecount = 0;
+		unsigned long long loc = 0;
+		unsigned long long lastslash = 0;
 
-    sbi->nr_blocks = csb->nr_blocks;
-    sbi->nr_inodes = csb->nr_inodes;
-    sbi->nr_istore_blocks = csb->nr_istore_blocks;
-    sbi->nr_ifree_blocks = csb->nr_ifree_blocks;
-    sbi->nr_bfree_blocks = csb->nr_bfree_blocks;
-    sbi->nr_free_inodes = csb->nr_free_inodes;
-    sbi->nr_free_blocks = csb->nr_free_blocks;
-    sb->s_fs_info = sbi;
+		for (KMCSFS->filenamesend = 5; KMCSFS->filenamesend < KMCSFS->extratablesize; KMCSFS->filenamesend++)
+		{
+			if ((KMCSFS->table[KMCSFS->filenamesend] & 0xff) == 255)
+			{
+				if ((KMCSFS->table[min(KMCSFS->filenamesend + 1, KMCSFS->extratablesize)] & 0xff) == 254)
+				{
+					found = true;
+					break;
+				}
+				else
+				{
+					if (loc == 0)
+    				{
+						KMCSFS->tableend = KMCSFS->filenamesend;
+					}
+
+					// if following check is not enough to block the driver from loading unnecessarily,
+					// then we can add a check to make sure all bytes between loc and i equal a vaild path.
+					// if that is not enough, then nothing will be.
+
+					loc = KMCSFS->filenamesend;
+				}
+				KMCSFS->filecount++;
+				lastslash = 0;
+			}
+			if ((KMCSFS->table[KMCSFS->filenamesend] & 0xff) == 47 || (KMCSFS->table[KMCSFS->filenamesend] & 0xff) == 92)
+			{
+				lastslash = KMCSFS->filenamesend - loc;
+			}
+			if (KMCSFS->filenamesend - loc - lastslash > 256 && loc > 0)
+			{
+				break;
+			}
+		}
+
+        if (found)
+        {
+            KMCSFS->tablestr = decode(KMCSFS->table + 5, KMCSFS->tableend - 5);
+			if (!KMCSFS->tablestr)
+			{
+				pr_err("out of memory\n");
+				found = false;
+				goto free_kmcsfs_table;
+			}
+			KMCSFS->tablestrlen = KMCSFS->tableend + KMCSFS->tableend - 10;
+
+			unsigned long long i = 0;
+			while (KMCSFS->filecount > (unsigned long long)(1) << i)
+			{
+				i++;
+			}
+			KMCSFS->DictSize = (unsigned long long)(1) << (i + 1);
+			KMCSFS->dict = CreateDict(KMCSFS->DictSize);
+			if (!KMCSFS->dict)
+			{
+				pr_err("out of memory\n");
+				kfree(KMCSFS->tablestr);
+				found = false;
+				goto free_kmcsfs_table;
+			}
+
+			KMCSFS->readbuf = kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
+			if (!KMCSFS->readbuf)
+			{
+				pr_err("out of memory\n");
+				kfree(KMCSFS->tablestr);
+				kfree(KMCSFS->dict);
+				found = false;
+				goto free_kmcsfs_table;
+			}
+			KMCSFS->writebuf = kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
+			if (!KMCSFS->writebuf)
+			{
+				pr_err("out of memory\n");
+				kfree(KMCSFS->tablestr);
+				kfree(KMCSFS->dict);
+				kfree(KMCSFS->readbuf);
+				found = false;
+				goto free_kmcsfs_table;
+			}
+            rwlock_init(KMCSFS->readbuflock);
+			if (!KMCSFS->readbuflock)
+			{
+				pr_err("out of memory");
+				kfree(KMCSFS->tablestr);
+				kfree(KMCSFS->dict);
+				kfree(KMCSFS->readbuf);
+				kfree(KMCSFS->writebuf);
+				found = false;
+				goto free_kmcsfs_table;
+			}
+        }
+    }
+
+    if (!found)
+    {
+        pr_err("CSpaceFS Not Found.\n");
+        ret = -EINVAL;
+        goto free_kmcsfs_table;
+    }
+
+    sb->s_fs_info = KMCSFS;
 
     brelse(bh);
-
-    /* Allocate and copy ifree_bitmap */
-    sbi->ifree_bitmap =
-        kzalloc(sbi->nr_ifree_blocks * SIMPLEFS_BLOCK_SIZE, GFP_KERNEL);
-    if (!sbi->ifree_bitmap) {
-        ret = -ENOMEM;
-        goto free_sbi;
-    }
-
-    for (i = 0; i < sbi->nr_ifree_blocks; i++) {
-        int idx = sbi->nr_istore_blocks + i + 1;
-
-        bh = sb_bread(sb, idx);
-        if (!bh) {
-            ret = -EIO;
-            goto free_ifree;
-        }
-
-        memcpy((void *) sbi->ifree_bitmap + i * SIMPLEFS_BLOCK_SIZE, bh->b_data,
-               SIMPLEFS_BLOCK_SIZE);
-
-        brelse(bh);
-    }
-    bh = NULL;
-
-    /* Allocate and copy bfree_bitmap */
-    sbi->bfree_bitmap =
-        kzalloc(sbi->nr_bfree_blocks * SIMPLEFS_BLOCK_SIZE, GFP_KERNEL);
-    if (!sbi->bfree_bitmap) {
-        ret = -ENOMEM;
-        goto free_ifree;
-    }
-
-    for (i = 0; i < sbi->nr_bfree_blocks; i++) {
-        int idx = sbi->nr_istore_blocks + sbi->nr_ifree_blocks + i + 1;
-
-        bh = sb_bread(sb, idx);
-        if (!bh) {
-            ret = -EIO;
-            goto free_bfree;
-        }
-
-        memcpy((void *) sbi->bfree_bitmap + i * SIMPLEFS_BLOCK_SIZE, bh->b_data,
-               SIMPLEFS_BLOCK_SIZE);
-
-        brelse(bh);
-    }
 
     bh = NULL;
     /* Create root inode */
     root_inode = simplefs_iget(sb, 1);
-    if (IS_ERR(root_inode)) {
+    if (IS_ERR(root_inode))
+    {
         ret = PTR_ERR(root_inode);
-        goto free_bfree;
+        goto free_kmcsfs_table;
     }
 
 #if SIMPLEFS_AT_LEAST(6, 3, 0)
@@ -636,15 +697,16 @@ int simplefs_fill_super(struct super_block *sb, void *data, int silent)
 #endif
 
     sb->s_root = d_make_root(root_inode);
-    if (!sb->s_root) {
+    if (!sb->s_root)
+    {
         ret = -ENOMEM;
         goto iput;
     }
 
     ret = simplefs_parse_options(sb, data);
-    if (ret) {
-        pr_err("simplefs_fill_super: Failed to parse options, error code: %d\n",
-               ret);
+    if (ret)
+    {
+        pr_err("simplefs_fill_super: Failed to parse options, error code: %d\n", ret);
         return ret;
     }
 
@@ -652,12 +714,10 @@ int simplefs_fill_super(struct super_block *sb, void *data, int silent)
 
 iput:
     iput(root_inode);
-free_bfree:
-    kfree(sbi->bfree_bitmap);
-free_ifree:
-    kfree(sbi->ifree_bitmap);
-free_sbi:
-    kfree(sbi);
+free_kmcsfs_table:
+    kfree(KMCSFS->table);
+free_kmcsfs:
+    kfree(KMCSFS);
 release:
     brelse(bh);
 

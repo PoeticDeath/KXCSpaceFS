@@ -101,7 +101,7 @@ struct simplefs_dir_block {
 };
 
 /* superblock functions */
-int simplefs_fill_super(struct super_block *sb, void *data, int silent);
+int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent);
 void kxcspacefs_kill_sb(struct super_block* sb);
 
 /* inode functions */
@@ -129,7 +129,8 @@ extern uint32_t simplefs_ext_search(struct simplefs_file_ei_block *index,
 
 #endif /* __KERNEL__ */
 
-struct simplefs_sb_info {
+struct simplefs_sb_info
+{
     uint32_t magic; /* Magic number */
 
     uint32_t nr_blocks; /* Total number of blocks (incl sb & inodes) */
@@ -142,8 +143,8 @@ struct simplefs_sb_info {
     uint32_t nr_free_inodes; /* Number of free inodes */
     uint32_t nr_free_blocks; /* Number of free blocks */
 
-    unsigned long *ifree_bitmap; /* In-memory free inodes bitmap */
-    unsigned long *bfree_bitmap; /* In-memory free blocks bitmap */
+    unsigned long* ifree_bitmap; /* In-memory free inodes bitmap */
+    unsigned long* bfree_bitmap; /* In-memory free blocks bitmap */
 #ifdef __KERNEL__
     journal_t *journal;
     struct block_device *s_journal_bdev; /* v5.10+ external journal device */
