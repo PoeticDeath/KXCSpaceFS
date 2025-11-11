@@ -1,6 +1,9 @@
 #ifndef SIMPLEFS_H
 #define SIMPLEFS_H
 
+#include "Dict.h"
+#include "cspacefs.h"
+
 /* source: https://en.wikipedia.org/wiki/Hexspeak */
 #define SIMPLEFS_MAGIC 0xDEADCELL
 
@@ -107,7 +110,7 @@ void kxcspacefs_kill_sb(struct super_block* sb);
 /* inode functions */
 int simplefs_init_inode_cache(void);
 void simplefs_destroy_inode_cache(void);
-struct inode* kxcspacefs_iget(struct super_block *sb, unsigned long long index);
+struct inode* kxcspacefs_iget(struct super_block *sb, unsigned long long index, UNICODE_STRING* fn);
 
 /* dentry function */
 struct dentry *kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data);
