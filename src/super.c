@@ -657,7 +657,7 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
             rwlock_init(KMCSFS->readbuflock);
 			if (!KMCSFS->readbuflock)
 			{
-				pr_err("out of memory");
+				pr_err("out of memory\n");
 				kfree(KMCSFS->tablestr);
 				kfree(KMCSFS->dict);
 				kfree(KMCSFS->readbuf);
@@ -668,7 +668,57 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
         }
     }
 
-    if (!found)
+    if (found)
+    {
+        unsigned long long len = 0;
+	    unsigned long long count = 0;
+	    unsigned char* filename = kzalloc(65536, GFP_KERNEL);
+	    if (filename)
+	    {
+		    for (unsigned long long i = KMCSFS->tableend + 1; i < KMCSFS->filenamesend; i++)
+		    {
+			    if ((KMCSFS->table[i] & 0xff) == 255)
+			    {
+				    AddDictEntry(&KMCSFS->dict, filename, i - len - KMCSFS->tableend, len, &KMCSFS->CurDictSize, &KMCSFS->DictSize, count, false);
+				    if (!(count % 1000))
+				    {
+					    pr_err("%llu / %llu indices computed.\n", count, KMCSFS->filecount);
+				    }
+				    count++;
+				    len = 0;
+				    continue;
+			    }
+			    else if ((KMCSFS->table[i] & 0xff) == 42)
+			    {
+				    AddDictEntry(&KMCSFS->dict, filename, i - len - KMCSFS->tableend, len, &KMCSFS->CurDictSize, &KMCSFS->DictSize, count, false);
+				    if (!(count % 1000))
+				    {
+					    pr_err("%llu / %llu indices computed.\n", count, KMCSFS->filecount);
+				    }
+				    len = 0;
+				    continue;
+			    }
+			    else
+			    {
+				    filename[len] = KMCSFS->table[i] & 0xff;
+			    }
+			    len++;
+		    }
+		    kfree(filename);
+	    }
+        else
+        {
+            pr_err("out of memory\n");
+            kfree(KMCSFS->tablestr);
+			kfree(KMCSFS->dict);
+			kfree(KMCSFS->readbuf);
+			kfree(KMCSFS->writebuf);
+            kfree(KMCSFS->readbuflock);
+            ret = -ENOMEM;
+            goto free_kmcsfs_table;
+        }
+    }
+    else
     {
         pr_err("CSpaceFS Not Found.\n");
         ret = -EINVAL;
@@ -681,12 +731,24 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
 
     bh = NULL;
     /* Create root inode */
-    root_inode = simplefs_iget(sb, 1);
-    if (IS_ERR(root_inode))
+    //root_inode = simplefs_iget(sb, 1);
+    root_inode = kzalloc(sizeof(struct inode), GFP_KERNEL);
+    if (!root_inode)
+    {
+        ret = -ENOMEM;
+        goto free_kmcsfs_table;
+    }
+
+    unsigned long long index = 1;//get_filename_index(, KMCSFS);
+    root_inode->i_gid.val = chgid(index, 0, *KMCSFS);
+    root_inode->i_uid.val = chuid(index, 0, *KMCSFS);
+    root_inode->i_mode = chmode(index, 0, *KMCSFS);
+
+    /*if (IS_ERR(root_inode))
     {
         ret = PTR_ERR(root_inode);
         goto free_kmcsfs_table;
-    }
+    }*/
 
 #if SIMPLEFS_AT_LEAST(6, 3, 0)
     inode_init_owner(&nop_mnt_idmap, root_inode, NULL, root_inode->i_mode);
@@ -703,12 +765,12 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
         goto iput;
     }
 
-    ret = simplefs_parse_options(sb, data);
+    /*ret = simplefs_parse_options(sb, data);
     if (ret)
     {
         pr_err("simplefs_fill_super: Failed to parse options, error code: %d\n", ret);
         return ret;
-    }
+    }*/
 
     return 0;
 

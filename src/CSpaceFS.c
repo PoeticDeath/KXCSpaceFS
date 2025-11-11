@@ -25,7 +25,7 @@ void sync_read_phys(unsigned long long offset, unsigned long long length, char* 
 		struct buffer_head* data = __bread(bdev, offset / 512 + i / 512, 512);
 		if (data)
 		{
-			copy_to_user(buf + i, data->b_data, 512);
+			memcpy(buf + i, data->b_data, 512);
 			brelse(data);
 		}
 	}
@@ -38,11 +38,9 @@ void sync_write_phys(unsigned long long offset, unsigned long long length, char*
 		struct buffer_head* data = __bread(bdev, offset / 512 + i / 512, 512);
 		if (data)
 		{
-			if (!copy_from_user(data->b_data + offset % 512, buf + i, 512 - offset % 512))
-			{
-				mark_buffer_dirty(data);
-				sync_dirty_buffer(data);
-			}
+			memcpy(data->b_data + offset % 512, buf + i, 512 - offset % 512);
+			mark_buffer_dirty(data);
+			sync_dirty_buffer(data);
 			brelse(data);
 		}
 		i -= offset % 512;
