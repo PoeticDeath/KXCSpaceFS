@@ -1,7 +1,8 @@
 // Copyright (c) Anthony Kerr 2024-
 
-#include "cspacefs.h"
+#include "linuxfs.h"
 #include "Dict.h"
+#include "cspacefs.h"
 
 unsigned* emap = NULL;
 unsigned* dmap = NULL;
@@ -15,13 +16,13 @@ void init_maps()
 	emap = kzalloc(65536 * sizeof(unsigned), GFP_KERNEL);
 	if (!emap)
 	{
-		ERR("out of memory\n");
+		pr_err("out of memory\n");
 		return;
 	}
 	dmap = kzalloc(256 * sizeof(unsigned), GFP_KERNEL);
 	if (!dmap)
 	{
-		ERR("out of memory\n");
+		pr_err("out of memory\n");
 		return;
 	}
 	for (unsigned i = 0; i < 15; i++)
@@ -45,7 +46,7 @@ char* encode(char* str, unsigned long long len)
 		alc = kzalloc(len, GFP_KERNEL);
 		if (!alc)
 		{
-			ERR("out of memory\n");
+			pr_err("out of memory\n");
 			return NULL;
 		}
 		memcpy(alc, str, len - 1);
@@ -55,10 +56,10 @@ char* encode(char* str, unsigned long long len)
 	char* bytes = kzalloc(len / 2 + 1, GFP_KERNEL);
 	if (!bytes)
 	{
-		ERR("out of memory\n");
+		pr_err("out of memory\n");
 		if (alc)
 		{
-			zfree(alc);
+			kfree(alc);
 		}
 		return NULL;
 	}
@@ -68,7 +69,7 @@ char* encode(char* str, unsigned long long len)
 		{
 			bytes[i / 2] = emap[alc[i] << 8 | alc[i + 1]];
 		}
-		zfree(alc);
+		kfree(alc);
 	}
 	else
 	{
@@ -86,7 +87,7 @@ char* decode(char* bytes, unsigned long long len)
 	char* str = kzalloc((len + 1) * 2, GFP_KERNEL);
 	if (!str)
 	{
-		ERR("out of memory\n");
+		pr_err("out of memory\n");
 		return NULL;
 	}
 	unsigned d;
@@ -430,7 +431,7 @@ NTSTATUS read_file(fcb* fcb, uint8_t* data, unsigned long long start, unsigned l
 		}
 		else
 		{
-			ERR("out of memory\n");
+			pr_err("out of memory\n");
 			return STATUS_INSUFFICIENT_RESOURCES;
 		}
 	}
@@ -858,14 +859,14 @@ NTSTATUS create_file(PIRP Irp, device_extension* Vcb, PFILE_OBJECT FileObject, U
 
 	if (!is_table_expandable(Vcb->vde->pdode->KMCSFS, Vcb->vde->pdode->KMCSFS.filenamesend + 2 + fn.Length / sizeof(WCHAR) + 1 + 35 * (Vcb->vde->pdode->KMCSFS.filecount + 1)))
 	{
-		ERR("table is not expandable\n");
+		pr_err("table is not expandable\n");
 		return STATUS_DISK_FULL;
 	}
 
 	char* newtablestr = kzalloc(Vcb->vde->pdode->KMCSFS.tablestrlen + 2, GFP_KERNEL);
 	if (!newtablestr)
 	{
-		ERR("out of memory\n");
+		pr_err("out of memory\n");
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
@@ -886,7 +887,7 @@ NTSTATUS create_file(PIRP Irp, device_extension* Vcb, PFILE_OBJECT FileObject, U
 	char* newtable = kzalloc(5 + (Vcb->vde->pdode->KMCSFS.tablestrlen + Vcb->vde->pdode->KMCSFS.tablestrlen % 2) / 2 + Vcb->vde->pdode->KMCSFS.filenamesend - Vcb->vde->pdode->KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (Vcb->vde->pdode->KMCSFS.filecount + 1), GFP_KERNEL);
 	if (!newtable)
 	{
-		ERR("out of memory\n");
+		pr_err("out of memory\n");
 		kfree(newtablestr);
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
@@ -895,7 +896,7 @@ NTSTATUS create_file(PIRP Irp, device_extension* Vcb, PFILE_OBJECT FileObject, U
 	char* newtablestren = encode(newtablestr, Vcb->vde->pdode->KMCSFS.tablestrlen);
 	if (!newtablestren)
 	{
-		ERR("out of memory\n");
+		pr_err("out of memory\n");
 		kfree(newtablestr);
 		kfree(newtable);
 		return STATUS_INSUFFICIENT_RESOURCES;
@@ -1157,7 +1158,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 		unsigned long* used_bytes = kzalloc((KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long), GFP_KERNEL);
 		if (!used_bytes)
 		{
-			ERR("out of memory\n");
+			pr_err("out of memory\n");
 			return false;
 		}
 		memset(used_bytes, 0, (KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long));
@@ -1299,7 +1300,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 				tempdata = kzalloc(endrlength, GFP_KERNEL);
 				if (!tempdata)
 				{
-					ERR("out of memory\n");
+					pr_err("out of memory\n");
 					kfree(used_bytes);
 					return false;
 				}
@@ -1333,7 +1334,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 							char* newtable = kzalloc(KMCSFS->tablestrlen + 22, GFP_KERNEL);
 							if (!newtable)
 							{
-								ERR("out of memory\n");
+								pr_err("out of memory\n");
 								kfree(used_bytes);
 								return false;
 							}
@@ -1358,7 +1359,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 							char* newtable = kzalloc(KMCSFS->tablestrlen + 21, GFP_KERNEL);
 							if (!newtable)
 							{
-								ERR("out of memory\n");
+								pr_err("out of memory\n");
 								kfree(used_bytes);
 								return false;
 							}
@@ -1395,7 +1396,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 							char* newtable = kzalloc(KMCSFS->tablestrlen + 64, GFP_KERNEL);
 							if (!newtable)
 							{
-								ERR("out of memory\n");
+								pr_err("out of memory\n");
 								kfree(used_bytes);
 								return false;
 							}
@@ -1430,7 +1431,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 							char* newtable = kzalloc(KMCSFS->tablestrlen + 63, GFP_KERNEL);
 							if (!newtable)
 							{
-								ERR("out of memory\n");
+								pr_err("out of memory\n");
 								kfree(used_bytes);
 								return false;
 							}
@@ -1468,7 +1469,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 							tablestr = kzalloc(KMCSFS->tablestrlen, GFP_KERNEL);
 							if (!tablestr)
 							{
-								ERR("out of memory\n");
+								pr_err("out of memory\n");
 								kfree(used_bytes);
 								return false;
 							}
@@ -1480,9 +1481,9 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 							used_sector_bytes = kzalloc(KMCSFS->sectorsize / 8, GFP_KERNEL);
 							if (!used_sector_bytes)
 							{
-								ERR("out of memory\n");
-								zfree(used_bytes);
-								zfree(tablestr);
+								pr_err("out of memory\n");
+								kfree(used_bytes);
+								kfree(tablestr);
 								return false;
 							}
 						}
@@ -1599,10 +1600,10 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 								char* newtable = kzalloc(KMCSFS->tablestrlen + 64, GFP_KERNEL);
 								if (!newtable)
 								{
-									ERR("out of memory\n");
-									zfree(used_bytes);
-									zfree(tablestr);
-									zfree(used_sector_bytes);
+									pr_err("out of memory\n");
+									kfree(used_bytes);
+									kfree(tablestr);
+									kfree(used_sector_bytes);
 									return false;
 								}
 								memcpy(newtable, KMCSFS->tablestr, loc);
@@ -1640,7 +1641,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 								char* newtable = kzalloc(KMCSFS->tablestrlen + 63, GFP_KERNEL);
 								if (!newtable)
 								{
-									ERR("out of memory\n");
+									pr_err("out of memory\n");
 									kfree(used_bytes);
 									kfree(tablestr);
 									kfree(used_sector_bytes);
@@ -1702,20 +1703,20 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 			unsigned long long extratablesize = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 2 + 35 * KMCSFS->filecount;
 			if (!is_table_expandable(*KMCSFS, extratablesize))
 			{
-				ERR("out of memory - could not write to disk 1\n");
+				pr_err("out of memory - could not write to disk 1\n");
 				return false;
 			}
 			unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
 			char* newtable = kzalloc(extratablesize, GFP_KERNEL);
 			if (!newtable)
 			{
-				ERR("out of memory - could not write to disk 2\n");
+				pr_err("out of memory - could not write to disk 2\n");
 				return false;
 			}
 			char* newtablestren = encode(KMCSFS->tablestr, KMCSFS->tablestrlen);
 			if (!newtablestren)
 			{
-				ERR("out of memory - could not write to disk 3\n");
+				pr_err("out of memory - could not write to disk 3\n");
 				kfree(newtable);
 				return false;
 			}
@@ -1744,7 +1745,7 @@ bool find_block(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long
 			unsigned long* used_bytes = kzalloc((KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long), GFP_KERNEL);
 			if (!used_bytes)
 			{
-				ERR("out of memory\n");
+				pr_err("out of memory\n");
 				return false;
 			}
 			memset(used_bytes, 0, (KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long));
@@ -1847,14 +1848,14 @@ bool delete_file(KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long
 	char* newtable = kzalloc(KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1), GFP_KERNEL);
 	if (!newtable)
 	{
-		ERR("out of memory\n");
+		pr_err("out of memory\n");
 		return false;
 	}
 	memset(newtable, 0, KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1));
 	char* newtablestr = kzalloc(KMCSFS->tablestrlen, GFP_KERNEL);
 	if (!newtablestr)
 	{
-		ERR("out of memory\n");
+		pr_err("out of memory\n");
 		kfree(newtable);
 		return false;
 	}
@@ -1916,7 +1917,7 @@ bool delete_file(KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long
 	char* newtablestren = encode(newtablestr, tablestrlen);
 	if (!newtablestren)
 	{
-		ERR("out of memory\n");
+		pr_err("out of memory\n");
 		kfree(newtable);
 		kfree(newtablestr);
 		return false;
@@ -1966,14 +1967,14 @@ NTSTATUS rename_file(KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn, 
 	char* newtable = kzalloc(extratablesize, GFP_KERNEL);
 	if (!newtable)
 	{
-		ERR("out of memory\n");
+		pr_err("out of memory\n");
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 	memset(newtable, 0, extratablesize);
 
 	if (!is_table_expandable(*KMCSFS, extratablesize))
 	{
-		ERR("table is not expandable\n");
+		pr_err("table is not expandable\n");
 		kfree(newtable);
 		return STATUS_DISK_FULL;
 	}

@@ -1,13 +1,37 @@
 // Copyright (c) Anthony Kerr 2025-
 
-#include <linux/buffer_head.h>
-#include <linux/fs.h>
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/slab.h>
-#include <linux/statfs.h>
+#pragma once
 
-#include <linux/blkdev.h>
-#include <linux/jbd2.h>
-#include <linux/namei.h>
-#include <linux/parser.h>
+typedef char WCHAR;
+typedef struct
+{
+    WCHAR* Buffer;
+    unsigned long long Length;
+} UNICODE_STRING;
+
+typedef struct
+{
+	unsigned char uuid[16];
+} KMCSpaceFS_UUID;
+
+typedef struct
+{
+	KMCSpaceFS_UUID uuid;
+	unsigned long sectorsize;
+	unsigned long long tablesize;
+	unsigned long long extratablesize;
+	unsigned long long filenamesend;
+	unsigned long long tableend;
+	unsigned long long size;
+	unsigned long long filecount;
+	unsigned long long tablestrlen;
+	char* table;
+	char* tablestr;
+	unsigned long long used_blocks;
+	unsigned long long CurDictSize;
+	unsigned long long DictSize;
+	Dict* dict;
+	unsigned char* readbuf;
+	//PERESOURCE readbuflock;
+	unsigned char* writebuf;
+} KMCSpaceFS;

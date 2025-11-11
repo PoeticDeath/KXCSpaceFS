@@ -1074,7 +1074,7 @@
   {
     "arguments": [
       "/usr/bin/gcc-13",
-      "-Wp,-MMD,./.kxcspacefs.mod.o.d",
+      "-Wp,-MMD,./.CSpaceFS.o.d",
       "-nostdinc",
       "-I/usr/src/linux-headers-6.14.0-35-generic/arch/x86/include",
       "-I/usr/src/linux-headers-6.14.0-35-generic/arch/x86/include/generated",
@@ -1190,18 +1190,20 @@
       "-fsanitize=shift",
       "-fsanitize=bool",
       "-fsanitize=enum",
+      "-I/home/akerr/Source/PoeticDeath/KXCSpaceFS/src/.",
+      "-I.",
       "-DMODULE",
-      "-DKBUILD_BASENAME=\"kxcspacefs.mod\"",
+      "-DKBUILD_BASENAME=\"CSpaceFS\"",
       "-DKBUILD_MODNAME=\"kxcspacefs\"",
       "-D__KBUILD_MODNAME=kmod_kxcspacefs",
       "-c",
       "-o",
-      "kxcspacefs.mod.o",
-      "kxcspacefs.mod.c"
+      "CSpaceFS.o",
+      "/home/akerr/Source/PoeticDeath/KXCSpaceFS/src/CSpaceFS.c"
     ],
     "directory": "/home/akerr/Source/PoeticDeath/KXCSpaceFS/build",
-    "file": "/home/akerr/Source/PoeticDeath/KXCSpaceFS/build/kxcspacefs.mod.c",
-    "output": "/home/akerr/Source/PoeticDeath/KXCSpaceFS/build/kxcspacefs.mod.o"
+    "file": "/home/akerr/Source/PoeticDeath/KXCSpaceFS/src/CSpaceFS.c",
+    "output": "/home/akerr/Source/PoeticDeath/KXCSpaceFS/build/CSpaceFS.o"
   },
   {
     "arguments": [

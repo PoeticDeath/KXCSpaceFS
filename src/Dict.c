@@ -1,7 +1,8 @@
 // Copyright (c) Anthony Kerr 2024-
 
-#include "cspacefs.h"
+#include "linuxfs.h"
 #include "Dict.h"
+#include "cspacefs.h"
 #include "Sha3.h"
 
 bool incmp(unsigned char a, unsigned char b)
