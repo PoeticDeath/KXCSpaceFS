@@ -654,7 +654,7 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
 				found = false;
 				goto free_kmcsfs_table;
 			}
-            rwlock_init(KMCSFS->readbuflock);
+            KMCSFS->readbuflock = kzalloc(sizeof(rwlock_t), GFP_KERNEL);
 			if (!KMCSFS->readbuflock)
 			{
 				pr_err("out of memory\n");
@@ -665,6 +665,7 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
 				found = false;
 				goto free_kmcsfs_table;
 			}
+            rwlock_init(KMCSFS->readbuflock);
         }
     }
 
