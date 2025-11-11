@@ -141,18 +141,18 @@ static int kxcspacefs_sync_fs(struct super_block *sb, int wait)
     return 0;
 }
 
-static int simplefs_statfs(struct dentry *dentry, struct kstatfs *stat)
+static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
 {
-    struct super_block *sb = dentry->d_sb;
-    struct simplefs_sb_info *sbi = SIMPLEFS_SB(sb);
+    struct super_block* sb = dentry->d_sb;
+    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
 
-    stat->f_type = SIMPLEFS_MAGIC;
-    stat->f_bsize = SIMPLEFS_BLOCK_SIZE;
-    stat->f_blocks = sbi->nr_blocks;
-    stat->f_bfree = sbi->nr_free_blocks;
-    stat->f_bavail = sbi->nr_free_blocks;
-    stat->f_files = sbi->nr_inodes;
-    stat->f_ffree = sbi->nr_free_inodes;
+    stat->f_type = 0xCCAACCEF;
+    stat->f_bsize = KMCSFS->sectorsize;
+    stat->f_blocks = KMCSFS->size / KMCSFS->sectorsize;
+    stat->f_bfree = stat->f_blocks - KMCSFS->used_blocks;
+    stat->f_bavail = stat->f_blocks - KMCSFS->used_blocks;
+    stat->f_files = KMCSFS->filecount;
+    stat->f_ffree = LLONG_MAX;
     stat->f_namelen = SIMPLEFS_FILENAME_LEN;
 
     return 0;
@@ -435,7 +435,7 @@ static struct super_operations simplefs_super_ops =
     .destroy_inode = simplefs_destroy_inode,
     .write_inode = simplefs_write_inode,
     .sync_fs = kxcspacefs_sync_fs,
-    .statfs = simplefs_statfs,
+    .statfs = kxcspacefs_statfs,
 };
 
 /* Fill the struct superblock from partition superblock */
