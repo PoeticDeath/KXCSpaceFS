@@ -14,11 +14,8 @@
 
 #include "simplefs.h"
 
-struct dentry *simplefs_mount(struct file_system_type *fs_type,
-                              int flags,
-                              const char *dev_name,
-                              void *data);
-void simplefs_kill_sb(struct super_block *sb);
+struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data);
+void kxcspacefs_kill_sb(struct super_block *sb);
 static struct kmem_cache *simplefs_inode_cache;
 
 /* Needed to initiate the inode cache, to allow us to attach
