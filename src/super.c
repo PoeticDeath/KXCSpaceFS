@@ -732,24 +732,12 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
 
     bh = NULL;
     /* Create root inode */
-    //root_inode = simplefs_iget(sb, 1);
-    root_inode = kzalloc(sizeof(struct inode), GFP_KERNEL);
-    if (!root_inode)
-    {
-        ret = -ENOMEM;
-        goto free_kmcsfs_table;
-    }
-
-    unsigned long long index = 1;//get_filename_index(, KMCSFS);
-    root_inode->i_gid.val = chgid(index, 0, *KMCSFS);
-    root_inode->i_uid.val = chuid(index, 0, *KMCSFS);
-    root_inode->i_mode = chmode(index, 0, *KMCSFS);
-
-    /*if (IS_ERR(root_inode))
+    root_inode = simplefs_iget(sb, 1);
+    if (IS_ERR(root_inode))
     {
         ret = PTR_ERR(root_inode);
         goto free_kmcsfs_table;
-    }*/
+    }
 
 #if SIMPLEFS_AT_LEAST(6, 3, 0)
     inode_init_owner(&nop_mnt_idmap, root_inode, NULL, root_inode->i_mode);
@@ -765,13 +753,6 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
         ret = -ENOMEM;
         goto iput;
     }
-
-    /*ret = simplefs_parse_options(sb, data);
-    if (ret)
-    {
-        pr_err("simplefs_fill_super: Failed to parse options, error code: %d\n", ret);
-        return ret;
-    }*/
 
     return 0;
 
