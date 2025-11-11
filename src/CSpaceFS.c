@@ -226,28 +226,14 @@ unsigned long long chtime(unsigned long long filenameindex, unsigned long long t
 		{
 			ti[i] = tim[7 - i];
 		}
-		//double t;
-		//memcpy(&t, ti, 8);
-		unsigned long long rtime = 0;//t * 10000000 + 116444736000000000;
-		if (rtime > 116444736000000000)
-		{
-			rtime += 2;
-		}
-		else if (rtime == 279172874304)
-		{
-			rtime++;
-		}
-		else if (rtime == 287762808896)
-		{
-			rtime += 3;
-		}
+		unsigned long long rtime = 0;
+		memcpy(&rtime, ti, 8);
 		return rtime;
 	}
 	else
 	{
-		//double t = (long long)(time - 116444736000000000) / 10000000.0;
 		char ti[8] = {0};
-		//memcpy(ti, &t, 8);
+		memcpy(ti, &time, 8);
 		char tim[8] = {0};
 		for (unsigned i = 0; i < 8; i++)
 		{
