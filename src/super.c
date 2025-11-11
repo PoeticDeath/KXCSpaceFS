@@ -643,9 +643,18 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
 
     bh = NULL;
     /* Create root inode */
-    root_inode = kxcspacefs_iget(sb, 1, NULL);
+    UNICODE_STRING root_fn;
+    root_fn.Length = 0;
+    root_fn.Buffer = NULL;
+    root_inode = kxcspacefs_iget(sb, 1, &root_fn);
     if (IS_ERR(root_inode))
     {
+        pr_err("out of memory\n");
+        kfree(KMCSFS->tablestr);
+		kfree(KMCSFS->dict);
+		kfree(KMCSFS->readbuf);
+		kfree(KMCSFS->writebuf);
+        kfree(KMCSFS->readbuflock);
         ret = PTR_ERR(root_inode);
         goto free_kmcsfs_table;
     }
@@ -661,6 +670,12 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
     sb->s_root = d_make_root(root_inode);
     if (!sb->s_root)
     {
+        pr_err("out of memory\n");
+        kfree(KMCSFS->tablestr);
+		kfree(KMCSFS->dict);
+		kfree(KMCSFS->readbuf);
+		kfree(KMCSFS->writebuf);
+        kfree(KMCSFS->readbuflock);
         ret = -ENOMEM;
         goto iput;
     }

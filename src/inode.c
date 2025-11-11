@@ -39,7 +39,7 @@ struct inode *kxcspacefs_iget(struct super_block *sb, unsigned long long index, 
     /* Fail if index is out of range */
     if (index >= KMCSFS->filecount || !index)
     {
-        return ERR_PTR(-EINVAL);
+        return ERR_PTR(-ENOENT);
     }
 
     /* Get a locked inode from Linux */
@@ -55,7 +55,29 @@ struct inode *kxcspacefs_iget(struct super_block *sb, unsigned long long index, 
         return inode;
     }
 
-    inode->i_private = fn;
+    inode->i_private = NULL;
+    if (fn)
+    {
+        UNICODE_STRING* ofn = kzalloc(sizeof(UNICODE_STRING), GFP_KERNEL);
+        if (!ofn)
+        {
+            pr_err("out of memory\n");
+            ret = -ENOMEM;
+            goto failed;
+        }
+        ofn->Length = fn->Length;
+        ofn->Buffer = kzalloc(ofn->Length, GFP_KERNEL);
+        if (!ofn->Buffer)
+        {
+            pr_err("out of memory\n");
+            ret = -ENOMEM;
+            kfree(ofn);
+            goto failed;
+        }
+        memcpy(ofn->Buffer, fn->Buffer, fn->Length);
+        inode->i_private = ofn;
+    }
+
     inode->i_ino = index;
     inode->i_sb = sb;
     inode->i_op = &simplefs_inode_ops;
@@ -132,16 +154,23 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     }
 
     /* Search for the file in directory */
+    UNICODE_STRING* pfn = dir->i_private;
     UNICODE_STRING fn;
-    fn.Buffer = dentry->d_name.name;
-    fn.Length = dentry->d_name.len;
+    fn.Length = pfn->Length + sizeof(WCHAR) + dentry->d_name.len;
+    fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
+    if (!fn.Buffer)
+    {
+        return ERR_PTR(-ENOMEM);
+    }
+    memcpy(fn.Buffer, pfn->Buffer, pfn->Length);
+    fn.Buffer[pfn->Length] = '/';
+    memcpy(fn.Buffer + pfn->Length + 1, dentry->d_name.name, dentry->d_name.len);
     inode = kxcspacefs_iget(sb, 0, &fn);
     if (IS_ERR(inode))
     {
         return ERR_PTR(inode);
     }
 
-search_end:
     /* Update directory access time */
 /*#if SIMPLEFS_AT_LEAST(6, 7, 0)
     inode_set_atime_to_ts(dir, current_time(dir));
