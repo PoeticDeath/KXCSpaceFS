@@ -368,7 +368,7 @@ static ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_
         }
     }
 
-    bytes_write = write_file(sb->s_bdev, *KMCSFS, buf, pos, len, index, &bytes_to_write);
+    bytes_write = write_file(sb->s_bdev, *KMCSFS, buf, pos, len, index, inode->i_size, &bytes_to_write);
     up_write(KMCSFS->op_lock);
     if (!bytes_write)
     {

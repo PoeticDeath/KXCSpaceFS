@@ -52,7 +52,7 @@ unsigned long chmode(unsigned long long filenameindex, unsigned long mode, KMCSp
 unsigned long chwinattrs(unsigned long long filenameindex, unsigned long winattrs, KMCSpaceFS KMCSFS);
 unsigned long long get_file_size(unsigned long long index, KMCSpaceFS KMCSFS);
 int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read);
-int write_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long size);
+int write_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long size, unsigned long long* bytes_written);
 int create_file(struct block_device* bdev, KMCSpaceFS KMCSFS, UNICODE_STRING fn, unsigned long gid, unsigned long uid, unsigned long mode);
 void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, unsigned long long newsize);
 bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size);
