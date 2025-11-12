@@ -39,14 +39,14 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     /* Fail if index is out of range */
     if (index >= KMCSFS->filecount || !index)
     {
-        return ERR_PTR(-ENOENT);
+        return -ENOENT;
     }
 
     /* Get a locked inode from Linux */
     inode = iget_locked(sb, index);
     if (!inode)
     {
-        return ERR_PTR(-ENOMEM);
+        return -ENOMEM;
     }
 
     /* If inode is in cache, return it */
@@ -132,7 +132,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
 
 failed:
     iget_failed(inode);
-    return ERR_PTR(ret);
+    return ret;
 }
 
 /* Search for a dentry in dir.
@@ -150,7 +150,7 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     /* Check filename length */
     if (dentry->d_name.len > SIMPLEFS_FILENAME_LEN)
     {
-        return ERR_PTR(-ENAMETOOLONG);
+        return -ENAMETOOLONG;
     }
 
     /* Search for the file in directory */
@@ -160,7 +160,7 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
     if (!fn.Buffer)
     {
-        return ERR_PTR(-ENOMEM);
+        return -ENOMEM;
     }
     memcpy(fn.Buffer, pfn->Buffer, pfn->Length);
     fn.Buffer[pfn->Length] = '/';
@@ -213,19 +213,19 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     if (!S_ISDIR(mode) && !S_ISREG(mode) && !S_ISLNK(mode))
     {
         pr_err("File type not supported (only directory, regular file and symlink supported)\n");
-        return ERR_PTR(-EINVAL);
+        return -EINVAL;
     }
 
     int ret = create_file(sb->s_bdev, *KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode);
-    if (IS_ERR(ERR_PTR(ret)))
+    if (IS_ERR(ret))
     {
-        return ERR_PTR(ret);
+        return ret;
     }
 
     inode = kxcspacefs_iget(sb, 0, &fn);
     if (IS_ERR(inode))
     {
-        return PTR_ERR(inode);
+        return inode;
     }
 
     return inode;
@@ -339,7 +339,7 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     inode = kxcspacefs_new_inode(dir, dentry, mode);
     if (IS_ERR(inode))
     {
-        return PTR_ERR(inode);
+        return inode;
     }
 
     /* setup dentry */
@@ -435,7 +435,7 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
     if (!fn.Buffer)
     {
-        return ERR_PTR(-ENOMEM);
+        return -ENOMEM;
     }
     memcpy(fn.Buffer, pfn->Buffer, pfn->Length);
     fn.Buffer[pfn->Length] = '/';
@@ -652,9 +652,9 @@ static int kxcspacefs_rmdir(struct inode* dir, struct dentry* dentry)
 
     /* If the directory is not empty, fail */
     int ret = kxcspacefs_iterate((void*)dentry->d_inode, NULL);
-    if (IS_ERR(ERR_PTR(ret)))
+    if (IS_ERR(ret))
     {
-        return ERR_PTR(ret);
+        return ret;
     }
 
     /* Remove directory with unlink */
