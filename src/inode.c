@@ -329,8 +329,6 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
 {
     struct inode* inode;
 
-    pr_err("Here: %.*s\n", dentry->d_name.len, dentry->d_name.name);//
-
     /* Check filename length */
     if (strlen(dentry->d_name.name) > SIMPLEFS_FILENAME_LEN)
     {
