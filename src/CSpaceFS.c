@@ -1889,13 +1889,13 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 	}
 }
 
-bool delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long index)
+int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long index)
 {
 	char* newtable = kzalloc(KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1), GFP_KERNEL);
 	if (!newtable)
 	{
 		pr_err("out of memory\n");
-		return false;
+		return -ENOMEM;
 	}
 	memset(newtable, 0, KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1));
 	char* newtablestr = kzalloc(KMCSFS->tablestrlen, GFP_KERNEL);
@@ -1903,7 +1903,7 @@ bool delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING f
 	{
 		pr_err("out of memory\n");
 		kfree(newtable);
-		return false;
+		return -ENOMEM;
 	}
 	memset(newtablestr, 0, KMCSFS->tablestrlen);
 	unsigned long long tableloc = 0;
@@ -1966,7 +1966,7 @@ bool delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING f
 		pr_err("out of memory\n");
 		kfree(newtable);
 		kfree(newtablestr);
-		return false;
+		return -ENOMEM;
 	}
 	unsigned long long extratablesize = 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 35 * (KMCSFS->filecount - 1);
 	unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
@@ -2002,7 +2002,7 @@ bool delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING f
 	KMCSFS->tablestr = newtablestr;
 	KMCSFS->tablestrlen = tablestrlen;
 	KMCSFS->filecount--;
-	return true;
+	return 0;
 }
 
 int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn)

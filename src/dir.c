@@ -14,9 +14,18 @@
  * This function is called by the VFS as ctx->pos changes.
  * Returns 0 on success.
  */
-static int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
+int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
 {
-    struct inode* inode = file_inode(dir);
+    struct inode* inode = NULL;
+	if (ctx)
+	{
+		inode = file_inode(dir);
+	}
+	else
+	{
+		inode = (void*)dir;
+	}
+
     struct super_block* sb = inode->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     int ret = 0;
@@ -27,14 +36,22 @@ static int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
         return -ENOTDIR;
     }
 
-    /* Commit . and .. to ctx */
-    if (!dir_emit_dots(dir, ctx))
-    {
-        return 0;
-    }
+	if (ctx)
+	{
+    	/* Commit . and .. to ctx */
+    	if (!dir_emit_dots(dir, ctx))
+    	{
+        	return 0;
+    	}
+	}
 
     /* Read the directory */
-    unsigned long long offset = ctx->pos - 2;
+    unsigned long long offset = 0;
+	if (ctx)
+	{
+		offset = ctx->pos - 2;
+	}
+
     unsigned long long curoffset = 0;
     UNICODE_STRING* fn = inode->i_private;
     UNICODE_STRING rfn;
@@ -110,12 +127,20 @@ static int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
 	    if (filenamelen)
 	    {
             rfn.Length = filenamelen;
-            if (!dir_emit(ctx, rfn.Buffer + fn->Length + 1, rfn.Length - fn->Length - sizeof(WCHAR), kxcspacefs_iget(sb, 0, &rfn)->i_ino, DT_UNKNOWN))
-            {
-                ret = 1;
-                break;
-            }
-            ctx->pos++;
+			if (ctx)
+			{
+            	if (!dir_emit(ctx, rfn.Buffer + fn->Length + 1, rfn.Length - fn->Length - sizeof(WCHAR), kxcspacefs_iget(sb, 0, &rfn)->i_ino, DT_UNKNOWN))
+            	{
+                	ret = 1;
+                	break;
+            	}
+            	ctx->pos++;
+			}
+			else
+			{
+				ret = -ENOTEMPTY;
+				break;
+			}
         }
     }
 

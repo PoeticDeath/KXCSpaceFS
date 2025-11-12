@@ -109,6 +109,7 @@ void kxcspacefs_kill_sb(struct super_block* sb);
 
 /* inode functions */
 struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, UNICODE_STRING* fn);
+int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx);
 
 /* dentry function */
 struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data);

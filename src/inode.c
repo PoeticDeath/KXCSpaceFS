@@ -424,116 +424,24 @@ release_bh:
  *   - cleanup file index block
  *   - cleanup inode
  */
-static int simplefs_unlink(struct inode *dir, struct dentry *dentry)
+static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
 {
-    struct super_block *sb = dir->i_sb;
-    struct simplefs_sb_info *sbi = KXCSPACEFS_SB(sb);
-    struct inode *inode = d_inode(dentry);
-    struct buffer_head *bh = NULL, *bh2 = NULL;
-    struct simplefs_file_ei_block *file_block = NULL;
-    char *block;
-#if SIMPLEFS_AT_LEAST(6, 6, 0) && SIMPLEFS_LESS_EQUAL(6, 7, 0)
-    struct timespec64 cur_time;
-#endif
-    int ei = 0, bi = 0;
-    int ret = 0;
+    struct super_block* sb = dir->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* pfn = dir->i_private;
+    UNICODE_STRING fn;
 
-    uint32_t ino = inode->i_ino;
-    uint32_t bno = 0;
-
-    ret = simplefs_remove_from_dir(dir, dentry);
-    if (ret != 0)
-        return ret;
-
-    if (S_ISLNK(inode->i_mode))
-        goto clean_inode;
-
-        /* Update inode stats */
-#if SIMPLEFS_AT_LEAST(6, 7, 0)
-    simple_inode_init_ts(dir);
-#elif SIMPLEFS_AT_LEAST(6, 6, 0)
-    cur_time = current_time(dir);
-    dir->i_mtime = dir->i_atime = cur_time;
-    inode_set_ctime_to_ts(dir, cur_time);
-#else
-    dir->i_mtime = dir->i_atime = dir->i_ctime = current_time(dir);
-#endif
-
-    if (S_ISDIR(inode->i_mode)) {
-        drop_nlink(dir);
-        drop_nlink(inode);
+    fn.Length = pfn->Length + sizeof(WCHAR) + dentry->d_name.len;
+    fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
+    if (!fn.Buffer)
+    {
+        return ERR_PTR(-ENOMEM);
     }
-    mark_inode_dirty(dir);
+    memcpy(fn.Buffer, pfn->Buffer, pfn->Length);
+    fn.Buffer[pfn->Length] = '/';
+    memcpy(fn.Buffer + pfn->Length + 1, dentry->d_name.name, dentry->d_name.len);
 
-    if (inode->i_nlink > 1) {
-        inode_dec_link_count(inode);
-        return ret;
-    }
-
-    /* Cleans up pointed blocks when unlinking a file. If reading the index
-     * block fails, the inode is cleaned up regardless, resulting in the
-     * permanent loss of this file's blocks. If scrubbing a data block fails,
-     * do not terminate the operation (as it is already too late); instead,
-     * release the block and proceed.
-     */
-    bno = SIMPLEFS_INODE(inode)->ei_block;
-    bh = sb_bread(sb, bno);
-    if (!bh)
-        goto clean_inode;
-    file_block = (struct simplefs_file_ei_block *) bh->b_data;
-
-    for (ei = 0; ei < SIMPLEFS_MAX_EXTENTS; ei++) {
-        if (!file_block->extents[ei].ee_start)
-            break;
-
-        put_blocks(sbi, file_block->extents[ei].ee_start,
-                   file_block->extents[ei].ee_len);
-
-        /* Scrub the extent */
-        for (bi = 0; bi < file_block->extents[ei].ee_len; bi++) {
-            bh2 = sb_bread(sb, file_block->extents[ei].ee_start + bi);
-            if (!bh2)
-                continue;
-            block = (char *) bh2->b_data;
-            memset(block, 0, SIMPLEFS_BLOCK_SIZE);
-            mark_buffer_dirty(bh2);
-            brelse(bh2);
-        }
-    }
-
-    /* Scrub index block */
-    memset(file_block, 0, SIMPLEFS_BLOCK_SIZE);
-    mark_buffer_dirty(bh);
-    brelse(bh);
-
-clean_inode:
-    /* Cleanup inode and mark dirty */
-    inode->i_blocks = 0;
-    SIMPLEFS_INODE(inode)->ei_block = 0;
-    inode->i_size = 0;
-    i_uid_write(inode, 0);
-    i_gid_write(inode, 0);
-
-#if SIMPLEFS_AT_LEAST(6, 7, 0)
-    inode_set_mtime(inode, 0, 0);
-    inode_set_atime(inode, 0, 0);
-    inode_set_ctime(inode, 0, 0);
-#elif SIMPLEFS_AT_LEAST(6, 6, 0)
-    inode->i_mtime.tv_sec = inode->i_atime.tv_sec = 0;
-    inode_set_ctime(inode, 0, 0);
-#else
-    inode->i_ctime.tv_sec = inode->i_mtime.tv_sec = inode->i_atime.tv_sec = 0;
-#endif
-
-    inode_dec_link_count(inode);
-
-    /* Free inode and index block from bitmap */
-    if (!S_ISLNK(inode->i_mode))
-        put_blocks(sbi, bno, 1);
-    inode->i_mode = 0;
-    put_inode(sbi, ino);
-
-    return ret;
+    return delete_file(sb->s_bdev, KMCSFS, fn, get_filename_index(fn, KMCSFS));
 }
 
 #if SIMPLEFS_AT_LEAST(6, 3, 0)
@@ -738,30 +646,19 @@ static int kxcspacefs_mkdir(struct inode* dir, struct dentry* dentry, umode_t mo
 }
 #endif
 
-static int simplefs_rmdir(struct inode *dir, struct dentry *dentry)
+static int kxcspacefs_rmdir(struct inode* dir, struct dentry* dentry)
 {
-    struct super_block *sb = dir->i_sb;
-    struct inode *inode = d_inode(dentry);
-    struct buffer_head *bh;
-    struct simplefs_file_ei_block *eblock;
+    struct super_block* sb = dir->i_sb;
 
     /* If the directory is not empty, fail */
-    if (inode->i_nlink > 2)
-        return -ENOTEMPTY;
-
-    bh = sb_bread(sb, SIMPLEFS_INODE(inode)->ei_block);
-    if (!bh)
-        return -EIO;
-
-    eblock = (struct simplefs_file_ei_block *) bh->b_data;
-    if (eblock->nr_files != 0) {
-        brelse(bh);
-        return -ENOTEMPTY;
+    int ret = kxcspacefs_iterate((void*)dentry->d_inode, NULL);
+    if (IS_ERR(ERR_PTR(ret)))
+    {
+        return ERR_PTR(ret);
     }
-    brelse(bh);
 
     /* Remove directory with unlink */
-    return simplefs_unlink(dir, dentry);
+    return kxcspacefs_unlink(dir, dentry);
 }
 
 static int simplefs_link(struct dentry *old_dentry,
@@ -961,9 +858,9 @@ static const struct inode_operations kxcspacefs_inode_ops =
 {
     .lookup = kxcspacefs_lookup,
     .create = kxcspacefs_create,
-    .unlink = simplefs_unlink,
+    .unlink = kxcspacefs_unlink,
     .mkdir = kxcspacefs_mkdir,
-    .rmdir = simplefs_rmdir,
+    .rmdir = kxcspacefs_rmdir,
     .rename = simplefs_rename,
     .link = simplefs_link,
     .symlink = simplefs_symlink,

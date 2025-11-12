@@ -56,5 +56,5 @@ int write_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsi
 int create_file(struct block_device* bdev, KMCSpaceFS KMCSFS, UNICODE_STRING fn, unsigned long gid, unsigned long uid, unsigned long mode);
 void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, unsigned long long newsize);
 bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size);
-bool delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long index);
+int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long index);
 int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn);
