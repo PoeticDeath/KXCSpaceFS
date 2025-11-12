@@ -34,6 +34,7 @@ typedef struct
 	unsigned char* readbuf;
 	rwlock_t* readbuflock;
 	unsigned char* writebuf;
+	rwlock_t* op_lock;
 } KMCSpaceFS;
 
 extern unsigned* emap;

@@ -317,7 +317,9 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
     }
 
     UNICODE_STRING* fn = inode->i_private;
+    read_lock(KMCSFS->op_lock);
     bytes_read = read_file(sb->s_bdev, *KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read);
+    read_unlock(KMCSFS->op_lock);
     if (!bytes_read)
     {
         /* successfully read data */

@@ -165,7 +165,9 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     memcpy(fn.Buffer, pfn->Buffer, pfn->Length);
     fn.Buffer[pfn->Length] = '/';
     memcpy(fn.Buffer + pfn->Length + 1, dentry->d_name.name, dentry->d_name.len);
+    read_lock(KMCSFS->op_lock);
     inode = kxcspacefs_iget(sb, 0, &fn);
+    read_unlock(KMCSFS->op_lock);
     if (IS_ERR(inode))
     {
         return ERR_PTR(inode);
