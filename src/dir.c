@@ -46,6 +46,7 @@ static int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
         return -ENOMEM;
     }
 
+	read_lock(KMCSFS->readbuflock);
     unsigned long long tableoffset = 0;
     while (tableoffset < KMCSFS->filenamesend - KMCSFS->tableend + 1)
 	{
@@ -119,6 +120,7 @@ static int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
     }
 
     kfree(rfn.Buffer);
+	read_unlock(KMCSFS->readbuflock);
     return ret;
 }
 

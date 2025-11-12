@@ -6,7 +6,6 @@
 
 unsigned* emap = NULL;
 unsigned* dmap = NULL;
-long _fltused = 0;
 
 static unsigned long long sector_align(unsigned long long n, unsigned long long a)
 {
