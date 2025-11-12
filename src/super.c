@@ -18,100 +18,6 @@
 
 struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data);
 void kxcspacefs_kill_sb(struct super_block *sb);
-static struct kmem_cache *simplefs_inode_cache;
-
-/* Needed to initiate the inode cache, to allow us to attach
- * filesystem-specific inode information.
- */
-int simplefs_init_inode_cache(void)
-{
-    simplefs_inode_cache = kmem_cache_create_usercopy(
-        "simplefs_cache", sizeof(struct simplefs_inode_info), 0, 0, 0,
-        sizeof(struct simplefs_inode_info), NULL);
-    if (!simplefs_inode_cache)
-        return -ENOMEM;
-    return 0;
-}
-
-/* De-allocate the inode cache */
-void simplefs_destroy_inode_cache(void)
-{
-    /* wait for call_rcu() and prevent the free cache be used */
-    rcu_barrier();
-
-    kmem_cache_destroy(simplefs_inode_cache);
-}
-
-static struct inode *simplefs_alloc_inode(struct super_block *sb)
-{
-    struct simplefs_inode_info *ci =
-        kmem_cache_alloc(simplefs_inode_cache, GFP_KERNEL);
-    if (!ci)
-        return NULL;
-
-    inode_init_once(&ci->vfs_inode);
-    return &ci->vfs_inode;
-}
-
-static void simplefs_destroy_inode(struct inode *inode)
-{
-    struct simplefs_inode_info *ci = SIMPLEFS_INODE(inode);
-    kmem_cache_free(simplefs_inode_cache, ci);
-}
-
-static int simplefs_write_inode(struct inode *inode,
-                                struct writeback_control *wbc)
-{
-    struct simplefs_inode *disk_inode;
-    struct simplefs_inode_info *ci = SIMPLEFS_INODE(inode);
-    struct super_block *sb = inode->i_sb;
-    struct simplefs_sb_info *sbi = SIMPLEFS_SB(sb);
-    struct buffer_head *bh;
-    uint32_t ino = inode->i_ino;
-    uint32_t inode_block = (ino / SIMPLEFS_INODES_PER_BLOCK) + 1;
-    uint32_t inode_shift = ino % SIMPLEFS_INODES_PER_BLOCK;
-
-    if (ino >= sbi->nr_inodes)
-        return 0;
-
-    bh = sb_bread(sb, inode_block);
-    if (!bh)
-        return -EIO;
-
-    disk_inode = (struct simplefs_inode *) bh->b_data;
-    disk_inode += inode_shift;
-
-    /* update the mode using what the generic inode has */
-    disk_inode->i_mode = inode->i_mode;
-    disk_inode->i_uid = i_uid_read(inode);
-    disk_inode->i_gid = i_gid_read(inode);
-    disk_inode->i_size = inode->i_size;
-
-#if SIMPLEFS_AT_LEAST(6, 6, 0)
-    struct timespec64 ctime = inode_get_ctime(inode);
-    disk_inode->i_ctime = ctime.tv_sec;
-#else
-    disk_inode->i_ctime = inode->i_ctime.tv_sec;
-#endif
-
-#if SIMPLEFS_AT_LEAST(6, 7, 0)
-    disk_inode->i_atime = inode_get_atime_sec(inode);
-    disk_inode->i_atime = inode_get_mtime_sec(inode);
-#else
-    disk_inode->i_atime = inode->i_atime.tv_sec;
-    disk_inode->i_mtime = inode->i_mtime.tv_sec;
-#endif
-    disk_inode->i_blocks = inode->i_blocks;
-    disk_inode->i_nlink = inode->i_nlink;
-    disk_inode->ei_block = ci->ei_block;
-    strncpy(disk_inode->i_data, ci->i_data, sizeof(ci->i_data));
-
-    mark_buffer_dirty(bh);
-    sync_dirty_buffer(bh);
-    brelse(bh);
-
-    return 0;
-}
 
 static void kxcspacefs_put_super(struct super_block *sb)
 {
@@ -165,9 +71,6 @@ static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
 static struct super_operations simplefs_super_ops =
 {
     .put_super = kxcspacefs_put_super,
-    .alloc_inode = simplefs_alloc_inode,
-    .destroy_inode = simplefs_destroy_inode,
-    .write_inode = simplefs_write_inode,
     .sync_fs = kxcspacefs_sync_fs,
     .statfs = kxcspacefs_statfs,
 };

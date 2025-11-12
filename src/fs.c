@@ -44,14 +44,8 @@ static struct file_system_type kxcspacefs_file_system_type = {
 static int __init kxcspacefs_init(void)
 {
     init_maps();
-    int ret = simplefs_init_inode_cache();
-    if (ret)
-    {
-        pr_err("Failed to create inode cache\n");
-        goto err;
-    }
 
-    ret = register_filesystem(&kxcspacefs_file_system_type);
+    int ret = register_filesystem(&kxcspacefs_file_system_type);
     if (ret)
     {
         pr_err("Failed to register file system\n");
@@ -62,11 +56,10 @@ static int __init kxcspacefs_init(void)
     return 0;
 
 err_inode:
-    simplefs_destroy_inode_cache();
     /* Only after rcu_barrier() is the memory guaranteed to be freed. */
-    rcu_barrier();
     kfree(emap);
     kfree(dmap);
+    rcu_barrier();
 err:
     return ret;
 }
@@ -79,11 +72,10 @@ static void __exit kxcspacefs_exit(void)
         pr_err("Failed to unregister file system\n");
     }
 
-    simplefs_destroy_inode_cache();
     /* Only after rcu_barrier() is the memory guaranteed to be freed. */
-    rcu_barrier();
     kfree(emap);
     kfree(dmap);
+    rcu_barrier();
 
     pr_info("module unloaded\n");
 }
