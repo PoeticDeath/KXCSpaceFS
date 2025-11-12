@@ -566,7 +566,7 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
 				found = false;
 				goto free_kmcsfs_table;
 			}
-            KMCSFS->readbuflock = kzalloc(sizeof(rwlock_t), GFP_KERNEL);
+            KMCSFS->readbuflock = kzalloc(sizeof(struct rw_semaphore), GFP_KERNEL);
 			if (!KMCSFS->readbuflock)
 			{
 				pr_err("out of memory\n");
@@ -577,8 +577,8 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
 				found = false;
 				goto free_kmcsfs_table;
 			}
-            rwlock_init(KMCSFS->readbuflock);
-            KMCSFS->op_lock = kzalloc(sizeof(rwlock_t), GFP_KERNEL);
+            init_rwsem(KMCSFS->readbuflock);
+            KMCSFS->op_lock = kzalloc(sizeof(struct rw_semaphore), GFP_KERNEL);
 			if (!KMCSFS->op_lock)
 			{
 				pr_err("out of memory\n");
@@ -590,7 +590,7 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
 				found = false;
 				goto free_kmcsfs_table;
 			}
-            rwlock_init(KMCSFS->op_lock);
+            init_rwsem(KMCSFS->op_lock);
         }
     }
 

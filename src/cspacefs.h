@@ -32,9 +32,9 @@ typedef struct
 	unsigned long long DictSize;
 	Dict* dict;
 	unsigned char* readbuf;
-	rwlock_t* readbuflock;
+	struct rw_semaphore* readbuflock;
 	unsigned char* writebuf;
-	rwlock_t* op_lock;
+	struct rw_semaphore* op_lock;
 } KMCSpaceFS;
 
 extern unsigned* emap;

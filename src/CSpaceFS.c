@@ -471,7 +471,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 		if (sector_align(length, KMCSFS.sectorsize) <= KMCSFS.sectorsize)
 		{
 			locked = true;
-			write_lock(KMCSFS.readbuflock);
+			down_write(KMCSFS.readbuflock);
 			buf = KMCSFS.readbuf;
 		}
 		else
@@ -573,7 +573,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 			{
 				if (locked)
 				{
-					write_unlock(KMCSFS.readbuflock);
+					up_write(KMCSFS.readbuflock);
 				}
 				else
 				{
@@ -636,7 +636,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 	}
 	if (locked)
 	{
-		write_unlock(KMCSFS.readbuflock);
+		up_write(KMCSFS.readbuflock);
 	}
 	else
 	{
