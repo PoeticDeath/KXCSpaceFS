@@ -521,7 +521,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 							}
 							else
 							{
-								sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize, KMCSFS.sectorsize, buf, bdev);
+								sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize, min(KMCSFS.sectorsize, length - *bytes_read), buf, bdev);
 								copy_to_user(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
 								start += min(KMCSFS.sectorsize, length - *bytes_read);
 								*bytes_read += min(KMCSFS.sectorsize, length - *bytes_read);
@@ -545,7 +545,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 						}
 						else
 						{
-							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize, KMCSFS.sectorsize, buf, bdev);
+							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize, min(KMCSFS.sectorsize, length - *bytes_read), buf, bdev);
 							copy_to_user(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
 							start += min(KMCSFS.sectorsize, length - *bytes_read);
 							*bytes_read += min(KMCSFS.sectorsize, length - *bytes_read);
