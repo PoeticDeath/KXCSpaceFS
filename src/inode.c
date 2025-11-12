@@ -205,7 +205,6 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     struct super_block* sb = dir->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     UNICODE_STRING fn;
-    int ret;
 
     fn.Length = dentry->d_name.len;
     fn.Buffer = dentry->d_name.name;
@@ -217,10 +216,10 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
         return ERR_PTR(-EINVAL);
     }
 
-    ret = ERR_PTR(create_file(sb->s_bdev, *KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode));
-    if (IS_ERR(ret))
+    int ret = create_file(sb->s_bdev, *KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode);
+    if (IS_ERR(ERR_PTR(ret)))
     {
-        return ret;
+        return ERR_PTR(ret);
     }
 
     inode = kxcspacefs_iget(sb, 0, &fn);
@@ -230,11 +229,6 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     }
 
     return inode;
-
-put_inode:
-    iput(inode);
-
-    return ERR_PTR(ret);
 }
 
 static uint32_t simplefs_get_available_ext_idx(
@@ -333,9 +327,7 @@ static int kxcspacefs_create(struct user_namespace* ns, struct inode* dir, struc
 static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t mode, bool excl)
 #endif
 {
-    struct super_block* sb = dir->i_sb;
     struct inode* inode;
-    int ret = 0;
 
     pr_err("Here: %.*s\n", dentry->d_name.len, dentry->d_name.name);//
 
@@ -349,19 +341,13 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     inode = kxcspacefs_new_inode(dir, dentry, mode);
     if (IS_ERR(inode))
     {
-        ret = PTR_ERR(inode);
-        goto end;
+        return PTR_ERR(inode);
     }
 
     /* setup dentry */
     d_instantiate(dentry, inode);
 
     return 0;
-
-iput:
-    iput(inode);
-end:
-    return ret;
 }
 
 static int simplefs_remove_from_dir(struct inode *dir, struct dentry *dentry)
