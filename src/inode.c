@@ -110,13 +110,13 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     if (S_ISDIR(inode->i_mode))
     {
         //ci->ei_block = le32_to_cpu(cinode->ei_block);
-        inode->i_fop = &simplefs_dir_ops;
+        inode->i_fop = &kxcspacefs_dir_ops;
     }
     else if (S_ISREG(inode->i_mode))
     {
         //ci->ei_block = le32_to_cpu(cinode->ei_block);
-        inode->i_fop = &simplefs_file_ops;
-        inode->i_mapping->a_ops = &simplefs_aops;
+        inode->i_fop = &kxcspacefs_file_ops;
+        inode->i_mapping->a_ops = &kxcspacefs_aops;
     }
     else if (S_ISLNK(inode->i_mode))
     {
@@ -281,13 +281,13 @@ static struct inode *simplefs_new_inode(struct inode *dir, mode_t mode)
     if (S_ISDIR(mode)) {
         ci->ei_block = bno;
         inode->i_size = SIMPLEFS_BLOCK_SIZE;
-        inode->i_fop = &simplefs_dir_ops;
+        inode->i_fop = &kxcspacefs_dir_ops;
         set_nlink(inode, 2); /* . and .. */
     } else if (S_ISREG(mode)) {
         ci->ei_block = bno;
         inode->i_size = 0;
-        inode->i_fop = &simplefs_file_ops;
-        inode->i_mapping->a_ops = &simplefs_aops;
+        inode->i_fop = &kxcspacefs_file_ops;
+        inode->i_mapping->a_ops = &kxcspacefs_aops;
         set_nlink(inode, 1);
     }
 

@@ -382,7 +382,8 @@ static ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_
     return bytes_write;
 }
 
-const struct address_space_operations simplefs_aops = {
+const struct address_space_operations kxcspacefs_aops =
+{
 #if SIMPLEFS_AT_LEAST(5, 19, 0)
     .readahead = simplefs_readahead,
 #else
@@ -393,7 +394,7 @@ const struct address_space_operations simplefs_aops = {
     .write_end = simplefs_write_end,
 };
 
-const struct file_operations simplefs_file_ops =
+const struct file_operations kxcspacefs_file_ops =
 {
     .owner = THIS_MODULE,
     .open = kxcspacefs_open,

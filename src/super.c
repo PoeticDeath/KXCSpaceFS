@@ -68,7 +68,7 @@ static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
     return 0;
 }
 
-static struct super_operations simplefs_super_ops =
+static struct super_operations kxcspacefs_super_ops =
 {
     .put_super = kxcspacefs_put_super,
     .sync_fs = kxcspacefs_sync_fs,
@@ -85,7 +85,7 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
     /* Initialize the superblock */
     sb_set_blocksize(sb, 512);
     sb->s_maxbytes = LLONG_MAX;
-    sb->s_op = &simplefs_super_ops;
+    sb->s_op = &kxcspacefs_super_ops;
 
     /* Read the superblock from disk */
     bh = sb_bread(sb, SIMPLEFS_SB_BLOCK_NR);

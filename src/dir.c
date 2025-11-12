@@ -124,7 +124,7 @@ static int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
     return ret;
 }
 
-const struct file_operations simplefs_dir_ops =
+const struct file_operations kxcspacefs_dir_ops =
 {
     .owner = THIS_MODULE,
     .iterate_shared = kxcspacefs_iterate,

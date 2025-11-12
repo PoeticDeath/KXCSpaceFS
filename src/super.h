@@ -116,9 +116,9 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
 struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data);
 
 /* file functions */
-extern const struct file_operations simplefs_file_ops;
-extern const struct file_operations simplefs_dir_ops;
-extern const struct address_space_operations simplefs_aops;
+extern const struct file_operations kxcspacefs_file_ops;
+extern const struct file_operations kxcspacefs_dir_ops;
+extern const struct address_space_operations kxcspacefs_aops;
 
 /* extent functions */
 extern uint32_t simplefs_ext_search(struct simplefs_file_ei_block *index,
