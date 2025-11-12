@@ -45,7 +45,7 @@ static inline uint32_t get_free_inode(struct simplefs_sb_info *sbi)
  */
 static inline uint32_t get_free_blocks(struct super_block *sb, uint32_t len)
 {
-    struct simplefs_sb_info *sbi = SIMPLEFS_SB(sb);
+    struct simplefs_sb_info *sbi = KXCSPACEFS_SB(sb);
     uint32_t ret = get_first_free_bits(sbi->bfree_bitmap, sbi->nr_blocks, len);
     uint32_t i;
     if (!ret) /* No enough free blocks */

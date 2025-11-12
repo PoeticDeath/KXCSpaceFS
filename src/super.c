@@ -21,7 +21,7 @@ void kxcspacefs_kill_sb(struct super_block *sb);
 
 static void kxcspacefs_put_super(struct super_block *sb)
 {
-    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
     sync_blockdev(sb->s_bdev);
     invalidate_bdev(sb->s_bdev);
@@ -41,7 +41,7 @@ static void kxcspacefs_put_super(struct super_block *sb)
 
 static int kxcspacefs_sync_fs(struct super_block *sb, int wait)
 {
-    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
     // Future
 
@@ -51,7 +51,7 @@ static int kxcspacefs_sync_fs(struct super_block *sb, int wait)
 static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
 {
     struct super_block* sb = dentry->d_sb;
-    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
     stat->f_type = 0xCCAACCEF;
     stat->f_bsize = KMCSFS->sectorsize;

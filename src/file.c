@@ -140,7 +140,7 @@ static int simplefs_write_begin(struct file *file,
                                 void **fsdata)
 #endif
 {
-    struct simplefs_sb_info *sbi = SIMPLEFS_SB(file->f_inode->i_sb);
+    struct simplefs_sb_info *sbi = KXCSPACEFS_SB(file->f_inode->i_sb);
     int err;
     uint32_t nr_allocs = 0;
 
@@ -261,7 +261,7 @@ static int simplefs_write_end(struct file *file,
         for (i = first_ext; i < SIMPLEFS_MAX_EXTENTS; i++) {
             if (!index->extents[i].ee_start)
                 break;
-            put_blocks(SIMPLEFS_SB(sb), index->extents[i].ee_start,
+            put_blocks(KXCSPACEFS_SB(sb), index->extents[i].ee_start,
                        index->extents[i].ee_len);
             memset(&index->extents[i], 0, sizeof(struct simplefs_extent));
         }
@@ -290,7 +290,7 @@ static int kxcspacefs_open(struct inode* inode, struct file* filp)
 
     if ((wronly || rdwr) && trunc && inode->i_size)
     {
-        KMCSpaceFS* KMCSFS = SIMPLEFS_SB(inode->i_sb);
+        KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
         UNICODE_STRING* fn = inode->i_private;
         down_write(KMCSFS->op_lock);
         dealloc(KMCSFS, get_filename_index(*fn, KMCSFS), inode->i_size, 0);
@@ -306,7 +306,7 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
 {
     struct inode *inode = file_inode(file);
     struct super_block *sb = inode->i_sb;
-    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     unsigned long long bytes_to_read = 0;
     ssize_t bytes_read = 0;
     loff_t pos = *ppos;
@@ -341,7 +341,7 @@ static ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_
 {
     struct inode *inode = file_inode(file);
     struct super_block *sb = inode->i_sb;
-    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     UNICODE_STRING* fn = inode->i_private;
     unsigned long long bytes_to_write = 0;
     ssize_t bytes_write = 0;

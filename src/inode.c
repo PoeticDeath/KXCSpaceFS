@@ -25,7 +25,7 @@ static const struct inode_operations symlink_inode_ops;
 struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, UNICODE_STRING* fn)
 {
     struct inode *inode = NULL;
-    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     int ret;
 
     if (fn)
@@ -144,7 +144,7 @@ failed:
 static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry, unsigned int flags)
 {
     struct super_block *sb = dir->i_sb;
-    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     struct inode *inode = NULL;
 
     /* Check filename length */
@@ -222,7 +222,7 @@ static struct inode *simplefs_new_inode(struct inode *dir, mode_t mode)
 
     /* Check if inodes are available */
     sb = dir->i_sb;
-    sbi = SIMPLEFS_SB(sb);
+    sbi = KXCSPACEFS_SB(sb);
     if (sbi->nr_free_inodes == 0 || sbi->nr_free_blocks == 0)
         return ERR_PTR(-ENOSPC);
 
@@ -536,13 +536,13 @@ static int simplefs_create(struct inode *dir,
 
 put_block:
     if (alloc && eblock->extents[avail].ee_start) {
-        put_blocks(SIMPLEFS_SB(sb), eblock->extents[avail].ee_start,
+        put_blocks(KXCSPACEFS_SB(sb), eblock->extents[avail].ee_start,
                    eblock->extents[avail].ee_len);
         memset(&eblock->extents[avail], 0, sizeof(struct simplefs_extent));
     }
 iput:
-    put_blocks(SIMPLEFS_SB(sb), SIMPLEFS_INODE(inode)->ei_block, 1);
-    put_inode(SIMPLEFS_SB(sb), inode->i_ino);
+    put_blocks(KXCSPACEFS_SB(sb), SIMPLEFS_INODE(inode)->ei_block, 1);
+    put_inode(KXCSPACEFS_SB(sb), inode->i_ino);
     iput(inode);
 end:
     brelse(bh);
@@ -628,7 +628,7 @@ release_bh:
 static int simplefs_unlink(struct inode *dir, struct dentry *dentry)
 {
     struct super_block *sb = dir->i_sb;
-    struct simplefs_sb_info *sbi = SIMPLEFS_SB(sb);
+    struct simplefs_sb_info *sbi = KXCSPACEFS_SB(sb);
     struct inode *inode = d_inode(dentry);
     struct buffer_head *bh = NULL, *bh2 = NULL;
     struct simplefs_file_ei_block *file_block = NULL;
@@ -913,7 +913,7 @@ static int simplefs_rename(struct inode *old_dir,
 
 put_block:
     if (eblock_new->extents[ei].ee_start) {
-        put_blocks(SIMPLEFS_SB(sb), eblock_new->extents[ei].ee_start,
+        put_blocks(KXCSPACEFS_SB(sb), eblock_new->extents[ei].ee_start,
                    eblock_new->extents[ei].ee_len);
         memset(&eblock_new->extents[ei], 0, sizeof(struct simplefs_extent));
     }
@@ -1046,7 +1046,7 @@ static int simplefs_link(struct dentry *old_dentry,
 
 put_block:
     if (alloc && eblock->extents[ei].ee_start) {
-        put_blocks(SIMPLEFS_SB(sb), eblock->extents[ei].ee_start,
+        put_blocks(KXCSPACEFS_SB(sb), eblock->extents[ei].ee_start,
                    eblock->extents[ei].ee_len);
         memset(&eblock->extents[ei], 0, sizeof(struct simplefs_extent));
     }
@@ -1149,7 +1149,7 @@ static int simplefs_symlink(struct inode *dir,
 
 put_block:
     if (alloc && eblock->extents[ei].ee_start) {
-        put_blocks(SIMPLEFS_SB(sb), eblock->extents[ei].ee_start,
+        put_blocks(KXCSPACEFS_SB(sb), eblock->extents[ei].ee_start,
                    eblock->extents[ei].ee_len);
         memset(&eblock->extents[ei], 0, sizeof(struct simplefs_extent));
     }

@@ -18,7 +18,7 @@ static int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
 {
     struct inode* inode = file_inode(dir);
     struct super_block* sb = inode->i_sb;
-    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     int ret = 0;
 
     /* Check that dir is a directory */
