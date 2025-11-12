@@ -10,7 +10,7 @@
 #include "Dict.h"
 #include "cspacefs.h"
 
-static const struct inode_operations simplefs_inode_ops;
+static const struct inode_operations kxcspacefs_inode_ops;
 static const struct inode_operations symlink_inode_ops;
 
 /* Either return the inode that corresponds to a given inode number (ino), if
@@ -80,7 +80,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
 
     inode->i_ino = index;
     inode->i_sb = sb;
-    inode->i_op = &simplefs_inode_ops;
+    inode->i_op = &kxcspacefs_inode_ops;
 
     inode->i_mode = chmode(index, 0, *KMCSFS);
     i_uid_write(inode, chuid(index, 0, *KMCSFS));
@@ -1166,7 +1166,8 @@ static const char *simplefs_get_link(struct dentry *dentry,
     return inode->i_link;
 }
 
-static const struct inode_operations simplefs_inode_ops = {
+static const struct inode_operations kxcspacefs_inode_ops =
+{
     .lookup = kxcspacefs_lookup,
     .create = simplefs_create,
     .unlink = simplefs_unlink,
