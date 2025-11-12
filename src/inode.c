@@ -22,7 +22,7 @@ static const struct inode_operations symlink_inode_ops;
  * use this to create a completely new inode that has not been allocated on
  * disk.
  */
-struct inode *kxcspacefs_iget(struct super_block *sb, unsigned long long index, UNICODE_STRING* fn)
+struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, UNICODE_STRING* fn)
 {
     struct inode *inode = NULL;
     KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
