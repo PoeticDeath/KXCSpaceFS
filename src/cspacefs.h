@@ -40,7 +40,7 @@ typedef struct
 extern unsigned* emap;
 extern unsigned* dmap;
 void sync_read_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev);
-void sync_write_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev);
+void sync_write_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev, bool kern);
 void init_maps(void);
 char* encode(char* str, unsigned long long len);
 char* decode(char* bytes, unsigned long long len);

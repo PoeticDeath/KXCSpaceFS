@@ -150,6 +150,9 @@ static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
     stat->f_type = 0xCCAACCEF;
     stat->f_bsize = KMCSFS->sectorsize;
     stat->f_blocks = KMCSFS->size / KMCSFS->sectorsize;
+    down_read(KMCSFS->op_lock);
+    find_block(sb->s_bdev, KMCSFS, 0, 0);
+    up_read(KMCSFS->op_lock);
     stat->f_bfree = stat->f_blocks - KMCSFS->used_blocks;
     stat->f_bavail = stat->f_blocks - KMCSFS->used_blocks;
     stat->f_files = KMCSFS->filecount;

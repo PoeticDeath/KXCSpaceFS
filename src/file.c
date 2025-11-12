@@ -290,6 +290,11 @@ static int kxcspacefs_open(struct inode* inode, struct file* filp)
 
     if ((wronly || rdwr) && trunc && inode->i_size)
     {
+        KMCSpaceFS* KMCSFS = SIMPLEFS_SB(inode->i_sb);
+        UNICODE_STRING* fn = inode->i_private;
+        down_write(KMCSFS->op_lock);
+        dealloc(KMCSFS, get_filename_index(*fn, KMCSFS), inode->i_size, 0);
+        up_write(KMCSFS->op_lock);
         /* Update inode metadata */
         inode->i_size = 0;
         inode->i_blocks = 0;
@@ -332,100 +337,46 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
     return bytes_read;
 }
 
-static ssize_t simplefs_write(struct file *file,
-                              const char __user *buf,
-                              size_t len,
-                              loff_t *ppos)
+static ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, loff_t* ppos)
 {
     struct inode *inode = file_inode(file);
     struct super_block *sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = SIMPLEFS_SB(sb);
+    UNICODE_STRING* fn = inode->i_private;
+    unsigned long long bytes_to_write = 0;
     ssize_t bytes_write = 0;
     loff_t pos = *ppos;
 
     if (pos > inode->i_size)
+    {
         return 0;
-    len = min_t(size_t, len, SIMPLEFS_MAX_FILESIZE - pos);
-
-    /* find extent block */
-    struct buffer_head *bh = sb_bread(sb, SIMPLEFS_INODE(inode)->ei_block);
-    if (!bh)
-        return -EIO;
-    struct simplefs_file_ei_block *ei_block =
-        (struct simplefs_file_ei_block *) bh->b_data;
-
-    /* count block position */
-    sector_t block_index = pos / SIMPLEFS_BLOCK_SIZE;
-    sector_t ei_index = block_index / SIMPLEFS_MAX_BLOCKS_PER_EXTENT;
-
-    /* write data */
-    while (len > 0) {
-        /* check if block is allocated */
-        if (ei_block->extents[ei_index].ee_start == 0) {
-            int bno = get_free_blocks(sb, SIMPLEFS_MAX_BLOCKS_PER_EXTENT);
-            if (!bno) {
-                bytes_write = -ENOSPC;
-                break;
-            }
-            ei_block->extents[ei_index].ee_start = bno;
-            ei_block->extents[ei_index].ee_len = SIMPLEFS_MAX_BLOCKS_PER_EXTENT;
-            ei_block->extents[ei_index].ee_block =
-                ei_index ? ei_block->extents[ei_index - 1].ee_block +
-                               ei_block->extents[ei_index - 1].ee_len
-                         : 0;
-        }
-
-        struct buffer_head *bh_data =
-            sb_bread(sb, ei_block->extents[ei_index].ee_start +
-                             block_index % SIMPLEFS_MAX_BLOCKS_PER_EXTENT);
-        if (!bh_data) {
-            pr_err("Failed to read data block %llu\n",
-                   ei_block->extents[ei_index].ee_start +
-                       block_index % SIMPLEFS_MAX_BLOCKS_PER_EXTENT);
-            bytes_write = -EIO;
-            break;
-        }
-        /* copy data from buffer */
-        size_t bytes_to_write =
-            min_t(size_t, len, SIMPLEFS_BLOCK_SIZE - pos % SIMPLEFS_BLOCK_SIZE);
-
-        if (copy_from_user(bh_data->b_data + pos % SIMPLEFS_BLOCK_SIZE,
-                           buf + bytes_write, bytes_to_write)) {
-            brelse(bh_data);
-            bytes_write = -EFAULT;
-            break;
-        }
-
-        mark_buffer_dirty(bh_data);
-        sync_dirty_buffer(bh_data);
-        brelse(bh_data);
-
-        /* successfully write data */
-        len = len - bytes_to_write;
-        bytes_write += bytes_to_write;
-        pos += bytes_to_write;
-
-        /* count extent block */
-        block_index = pos / SIMPLEFS_BLOCK_SIZE;
-        ei_index = block_index / SIMPLEFS_MAX_BLOCKS_PER_EXTENT;
     }
-    mark_buffer_dirty(bh);
-    sync_dirty_buffer(bh);
-    brelse(bh);
 
-    inode->i_size = max(pos, inode->i_size);
-    inode->i_blocks = DIV_ROUND_UP(inode->i_size, SIMPLEFS_BLOCK_SIZE) + 1;
-#if SIMPLEFS_AT_LEAST(6, 7, 0)
-    struct timespec64 cur_time = current_time(inode);
-    inode_set_mtime_to_ts(inode, cur_time);
-    inode_set_ctime_to_ts(inode, cur_time);
-#elif SIMPLEFS_AT_LEAST(6, 6, 0)
-    struct timespec64 cur_time = current_time(inode);
-    inode->i_mtime = cur_time;
-    inode_set_ctime_to_ts(inode, cur_time);
-#else
-    inode->i_mtime = inode->i_ctime = current_time(inode);
-#endif
-    mark_inode_dirty(inode);
+    unsigned long long plen = pos + len;
+    down_write(KMCSFS->op_lock);
+    unsigned long long index = get_filename_index(*fn, KMCSFS);
+    if (plen > inode->i_size)
+    {
+        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
+        {
+            inode->i_size = plen;
+        }
+        else
+        {
+            up_write(KMCSFS->op_lock);
+            return -ENOSPC;
+        }
+    }
+
+    bytes_write = write_file(sb->s_bdev, *KMCSFS, buf, pos, len, index, &bytes_to_write);
+    up_write(KMCSFS->op_lock);
+    if (!bytes_write)
+    {
+        /* successfully wrote data */
+        bytes_write += bytes_to_write;
+        len -= bytes_to_write;
+        pos += bytes_to_write;
+    }
     *ppos = pos;
 
     return bytes_write;
@@ -447,7 +398,7 @@ const struct file_operations simplefs_file_ops =
     .owner = THIS_MODULE,
     .open = kxcspacefs_open,
     .read = kxcspacefs_read,
-    .write = simplefs_write,
+    .write = kxcspacefs_write,
     .llseek = generic_file_llseek,
     .fsync = generic_file_fsync,
 };
