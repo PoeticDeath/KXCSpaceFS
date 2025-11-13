@@ -294,10 +294,11 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 
     bh = NULL;
     /* Create root inode */
+	char name = '/';
     UNICODE_STRING root_fn;
-    root_fn.Length = 0;
-    root_fn.Buffer = NULL;
-    root_inode = kxcspacefs_iget(sb, 1, &root_fn);
+    root_fn.Length = sizeof(WCHAR);
+    root_fn.Buffer = &name;
+    root_inode = kxcspacefs_iget(sb, 0, &root_fn);
     if (IS_ERR(root_inode))
     {
         pr_err("out of memory\n");
@@ -333,9 +334,10 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
         goto iput;
     }
 
-	root_inode->i_gid.val = chgid(1, 0, *KMCSFS);
-	root_inode->i_uid.val = chuid(1, 0, *KMCSFS);
-	root_inode->i_mode = chmode(1, 0, *KMCSFS);
+	unsigned long long index = get_filename_index(root_fn, KMCSFS);
+	root_inode->i_gid.val = chgid(index, 0, *KMCSFS);
+	root_inode->i_uid.val = chuid(index, 0, *KMCSFS);
+	root_inode->i_mode = chmode(index, 0, *KMCSFS);
 
     return 0;
 

@@ -48,10 +48,15 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         return -ENOMEM;
     }
 
-    /* If inode is in cache, return it */
+    /* If inode is in cache, clean it */
     if (!(inode->i_state & I_NEW))
     {
-        return inode;
+        UNICODE_STRING* fn = inode->i_private;
+        if (fn->Length > sizeof(WCHAR))
+        {
+            kfree(fn->Buffer);
+            kfree(fn);
+        }
     }
 
     inode->i_private = NULL;
@@ -120,8 +125,11 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         inode->i_op = &symlink_inode_ops;
     }
 
-    /* Unlock the inode to make it usable */
-    unlock_new_inode(inode);
+    /* Unlock the inode to make it usable, if not found in cache */
+    if (inode->i_state & I_NEW)
+    {
+        unlock_new_inode(inode);
+    }
 
     return inode;
 
@@ -376,10 +384,6 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
 
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
-    if (!index)
-    {
-        index = 1;
-    }
 
     if (iattr->ia_valid & ATTR_MODE)
     {
