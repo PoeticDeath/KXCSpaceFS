@@ -385,13 +385,13 @@ static ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_
 const struct address_space_operations kxcspacefs_aops =
 {
 #if SIMPLEFS_AT_LEAST(5, 19, 0)
-    .readahead = simplefs_readahead,
+    //.readahead = simplefs_readahead,
 #else
-    .readpage = simplefs_readpage,
+    //.readpage = simplefs_readpage,
 #endif
-    .writepage = simplefs_writepage,
-    .write_begin = simplefs_write_begin,
-    .write_end = simplefs_write_end,
+    //.writepage = simplefs_writepage,
+    //.write_begin = simplefs_write_begin,
+    //.write_end = simplefs_write_end,
 };
 
 const struct file_operations kxcspacefs_file_ops =
