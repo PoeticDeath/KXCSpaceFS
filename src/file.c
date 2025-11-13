@@ -304,8 +304,8 @@ static int kxcspacefs_open(struct inode* inode, struct file* filp)
 
 static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, loff_t* ppos)
 {
-    struct inode *inode = file_inode(file);
-    struct super_block *sb = inode->i_sb;
+    struct inode* inode = file_inode(file);
+    struct super_block* sb = inode->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     unsigned long long bytes_to_read = 0;
     ssize_t bytes_read = 0;
@@ -339,8 +339,8 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
 
 static ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, loff_t* ppos)
 {
-    struct inode *inode = file_inode(file);
-    struct super_block *sb = inode->i_sb;
+    struct inode* inode = file_inode(file);
+    struct super_block* sb = inode->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     UNICODE_STRING* fn = inode->i_private;
     unsigned long long bytes_to_write = 0;
