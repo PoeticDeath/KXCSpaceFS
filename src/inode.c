@@ -211,7 +211,10 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
         return -EINVAL;
     }
 
+    down_write(KMCSFS->op_lock);
     int ret = create_file(sb->s_bdev, KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode);
+    up_write(KMCSFS->op_lock);
+
     if (IS_ERR(ret))
     {
         kfree(fn.Buffer);
@@ -279,7 +282,11 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     fn.Buffer[pfn->Length] = '/';
     memcpy(fn.Buffer + pfn->Length + 1, dentry->d_name.name, dentry->d_name.len);
 
-    return delete_file(sb->s_bdev, KMCSFS, fn, get_filename_index(fn, KMCSFS));
+    down_write(KMCSFS->op_lock);
+    int ret = delete_file(sb->s_bdev, KMCSFS, fn, get_filename_index(fn, KMCSFS));
+    up_write(KMCSFS->op_lock);
+
+    return ret;
 }
 
 #if KXCSPACEFS_AT_LEAST(6, 3, 0)
@@ -335,7 +342,10 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
         }
         else
         {
+            down_write(KMCSFS->op_lock);
             ret = delete_file(sb->s_bdev, KMCSFS, nfn, get_filename_index(nfn, KMCSFS));
+            up_write(KMCSFS->op_lock);
+
             if (IS_ERR(ret))
             {
                 kfree(nfn.Buffer);
@@ -344,9 +354,71 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
         }
     }
 
+    down_write(KMCSFS->op_lock);
     ret = rename_file(sb->s_bdev, KMCSFS, *oldfn, nfn);
+    up_write(KMCSFS->op_lock);
     kfree(nfn.Buffer);
     return ret;
+}
+
+static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struct iattr* iattr)
+{
+    struct inode* inode = d_inode(dentry);
+    struct super_block* sb = inode->i_sb;
+	KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* fn = inode->i_private;
+
+	int ret = setattr_prepare(id, dentry, iattr);
+	if (ret)
+    {
+		return ret;
+    }
+
+    down_write(KMCSFS->op_lock);
+    unsigned long long index = get_filename_index(*fn, KMCSFS);
+
+    if (iattr->ia_valid & ATTR_MODE)
+    {
+        chmode(index, iattr->ia_mode, *KMCSFS);
+    }
+
+    if (iattr->ia_valid & ATTR_UID)
+    {
+        chuid(index, iattr->ia_uid.val, *KMCSFS);
+    }
+
+    if (iattr->ia_valid & ATTR_GID)
+    {
+        chgid(index, iattr->ia_gid.val, *KMCSFS);
+    }
+
+	if (S_ISREG(inode->i_mode) && (iattr->ia_valid & ATTR_SIZE))
+    {
+        unsigned long long size = get_file_size(index, *KMCSFS);
+		if (size != iattr->ia_size)
+		{
+            if (size < iattr->ia_size)
+            {
+                if (!find_block(sb->s_bdev, KMCSFS, index, iattr->ia_size - size))
+                {
+                    up_write(KMCSFS->op_lock);
+                    return -ENOMEM;
+                }
+            }
+            else
+            {
+                dealloc(KMCSFS, index, size, iattr->ia_size);
+            }
+        }
+	}
+    up_write(KMCSFS->op_lock);
+
+	if (iattr->ia_valid)
+    {
+		setattr_copy(id, inode, iattr);
+	}
+
+	return ret;
 }
 
 #if KXCSPACEFS_AT_LEAST(6, 3, 0)
@@ -436,6 +508,7 @@ static const struct inode_operations kxcspacefs_inode_ops =
     .mkdir = kxcspacefs_mkdir,
     .rmdir = kxcspacefs_rmdir,
     .rename = kxcspacefs_rename,
+    .setattr = kxcspacefs_setattr,
     .symlink = kxcspacefs_symlink,
 };
 
