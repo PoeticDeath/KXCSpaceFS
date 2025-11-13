@@ -5,7 +5,6 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
-#include "bitmap.h"
 #include "super.h"
 #include "Dict.h"
 #include "cspacefs.h"
@@ -242,88 +241,6 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     return inode;
 }
 
-static uint32_t simplefs_get_available_ext_idx(
-    int *dir_nr_files,
-    struct simplefs_file_ei_block *eblock)
-{
-    int ei = 0;
-    uint32_t first_empty_blk = -1;
-    for (ei = 0; ei < SIMPLEFS_MAX_EXTENTS; ei++) {
-        if (eblock->extents[ei].ee_start &&
-            eblock->extents[ei].nr_files != SIMPLEFS_FILES_PER_EXT) {
-            first_empty_blk = ei;
-            break;
-        } else if (!eblock->extents[ei].ee_start) {
-            if (first_empty_blk == -1)
-                first_empty_blk = ei;
-        } else {
-            *dir_nr_files -= eblock->extents[ei].nr_files;
-            if (first_empty_blk == -1 && !*dir_nr_files)
-                first_empty_blk = ei + 1;
-        }
-        if (!*dir_nr_files)
-            break;
-    }
-    return first_empty_blk;
-}
-
-static int simplefs_put_new_ext(struct super_block *sb,
-                                uint32_t ei,
-                                struct simplefs_file_ei_block *eblock)
-{
-    int bno, bi;
-    struct buffer_head *bh;
-    struct simplefs_dir_block *dblock;
-    bno = get_free_blocks(sb, SIMPLEFS_MAX_BLOCKS_PER_EXTENT);
-    if (!bno)
-        return -ENOSPC;
-
-    eblock->extents[ei].ee_start = bno;
-    eblock->extents[ei].ee_len = SIMPLEFS_MAX_BLOCKS_PER_EXTENT;
-    eblock->extents[ei].ee_block =
-        ei ? eblock->extents[ei - 1].ee_block + eblock->extents[ei - 1].ee_len
-           : 0;
-    eblock->extents[ei].nr_files = 0;
-
-    /* clear the ext block*/
-    /* TODO: fix from 8 to dynamic value */
-    for (bi = 0; bi < eblock->extents[ei].ee_len; bi++) {
-        bh = sb_bread(sb, eblock->extents[ei].ee_start + bi);
-        if (!bh)
-            return -EIO;
-
-        dblock = (struct simplefs_dir_block *) bh->b_data;
-        memset(dblock, 0, sizeof(struct simplefs_dir_block));
-        dblock->files[0].nr_blk = SIMPLEFS_FILES_PER_BLOCK;
-        brelse(bh);
-    }
-    return 0;
-}
-
-static void simplefs_set_file_into_dir(struct simplefs_dir_block *dblock,
-                                       uint32_t inode_no,
-                                       const char *name)
-{
-    int fi;
-    if (dblock->nr_files != 0 && dblock->files[0].inode != 0) {
-        for (fi = 0; fi < SIMPLEFS_FILES_PER_BLOCK - 1; fi++) {
-            if (dblock->files[fi].nr_blk != 1)
-                break;
-        }
-        dblock->files[fi + 1].inode = inode_no;
-        dblock->files[fi + 1].nr_blk = dblock->files[fi].nr_blk - 1;
-        strncpy(dblock->files[fi + 1].filename, name, SIMPLEFS_FILENAME_LEN);
-        dblock->files[fi].nr_blk = 1;
-    } else if (dblock->nr_files == 0) {
-        dblock->files[fi].inode = inode_no;
-        strncpy(dblock->files[fi].filename, name, SIMPLEFS_FILENAME_LEN);
-    } else {
-        dblock->files[0].inode = inode_no;
-        strncpy(dblock->files[fi].filename, name, SIMPLEFS_FILENAME_LEN);
-    }
-    dblock->nr_files++;
-}
-
 /* Create a file or directory in this way:
  *   - check filename length and if the parent directory is not full
  *   - create the new inode (allocate inode and blocks)
@@ -357,75 +274,6 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     d_instantiate(dentry, inode);
 
     return 0;
-}
-
-static int simplefs_remove_from_dir(struct inode *dir, struct dentry *dentry)
-{
-    struct super_block *sb = dir->i_sb;
-    struct inode *inode = d_inode(dentry);
-    struct buffer_head *bh = NULL, *bh2 = NULL;
-    struct simplefs_file_ei_block *eblock = NULL;
-    struct simplefs_dir_block *dirblk = NULL;
-    int ei = 0, bi = 0, fi = 0;
-    int ret = 0, found = false;
-
-    /* Read parent directory index */
-    bh = sb_bread(sb, SIMPLEFS_INODE(dir)->ei_block);
-    if (!bh)
-        return -EIO;
-
-    eblock = (struct simplefs_file_ei_block *) bh->b_data;
-
-    int dir_nr_files = eblock->nr_files;
-    for (ei = 0; dir_nr_files; ei++) {
-        if (eblock->extents[ei].ee_start) {
-            dir_nr_files -= eblock->extents[ei].nr_files;
-            for (bi = 0; bi < eblock->extents[ei].ee_len; bi++) {
-                bh2 = sb_bread(sb, eblock->extents[ei].ee_start + bi);
-                if (!bh2) {
-                    ret = -EIO;
-                    goto release_bh;
-                }
-                dirblk = (struct simplefs_dir_block *) bh2->b_data;
-                int blk_nr_files = dirblk->nr_files;
-                for (fi = 0; blk_nr_files && fi < SIMPLEFS_FILES_PER_BLOCK;) {
-                    if (dirblk->files[fi].inode) {
-                        if (dirblk->files[fi].inode == inode->i_ino &&
-                            !strcmp(dirblk->files[fi].filename,
-                                    dentry->d_name.name)) {
-                            found = true;
-                            dirblk->files[fi].inode = 0;
-                            /* merge the empty data */
-                            for (int i = fi - 1; i >= 0; i--) {
-                                if (dirblk->files[i].inode != 0 || i == 0) {
-                                    dirblk->files[i].nr_blk +=
-                                        dirblk->files[fi].nr_blk;
-                                    break;
-                                }
-                            }
-                            dirblk->nr_files--;
-                            eblock->extents[ei].nr_files--;
-                            eblock->nr_files--;
-                            mark_buffer_dirty(bh2);
-                            brelse(bh2);
-                            found = true;
-                            goto found_data;
-                        }
-                        blk_nr_files--;
-                    }
-                    fi += dirblk->files[fi].nr_blk;
-                }
-                brelse(bh2);
-            }
-        }
-    }
-found_data:
-    if (found) {
-        mark_buffer_dirty(bh);
-    }
-release_bh:
-    brelse(bh);
-    return ret;
 }
 
 /* Remove a link for a file including the reference in the parent directory.
@@ -554,88 +402,6 @@ static int kxcspacefs_rmdir(struct inode* dir, struct dentry* dentry)
     return kxcspacefs_unlink(dir, dentry);
 }
 
-static int simplefs_link(struct dentry *old_dentry,
-                         struct inode *dir,
-                         struct dentry *dentry)
-{
-    struct inode *old_inode = d_inode(old_dentry);
-    struct super_block *sb = old_inode->i_sb;
-    struct simplefs_inode_info *ci_dir = SIMPLEFS_INODE(dir);
-    struct simplefs_file_ei_block *eblock = NULL;
-    struct simplefs_dir_block *dblock;
-    struct buffer_head *bh = NULL, *bh2 = NULL;
-    int ret = 0, alloc = false;
-    int ei = 0, bi = 0;
-    uint32_t avail;
-
-    bh = sb_bread(sb, ci_dir->ei_block);
-    if (!bh)
-        return -EIO;
-
-    eblock = (struct simplefs_file_ei_block *) bh->b_data;
-    if (eblock->nr_files == SIMPLEFS_MAX_SUBFILES) {
-        ret = -EMLINK;
-        printk(KERN_INFO "directory is full");
-        goto end;
-    }
-
-    int dir_nr_files = eblock->nr_files;
-    avail = simplefs_get_available_ext_idx(&dir_nr_files, eblock);
-
-    /* if there is not any empty space, alloc new one */
-    if (!dir_nr_files && !eblock->extents[avail].ee_start) {
-        ret = simplefs_put_new_ext(sb, avail, eblock);
-        switch (ret) {
-        case -ENOSPC:
-            ret = -ENOSPC;
-            goto end;
-        case -EIO:
-            ret = -EIO;
-            goto put_block;
-        }
-        alloc = true;
-    }
-
-    /* TODO: fix from 8 to dynamic value */
-    /* Find which simplefs_dir_block has free space */
-    for (bi = 0; bi < eblock->extents[avail].ee_len; bi++) {
-        bh2 = sb_bread(sb, eblock->extents[avail].ee_start + bi);
-        if (!bh2) {
-            ret = -EIO;
-            goto put_block;
-        }
-        dblock = (struct simplefs_dir_block *) bh2->b_data;
-        if (dblock->nr_files != SIMPLEFS_FILES_PER_BLOCK)
-            break;
-        else
-            brelse(bh2);
-    }
-
-    /* write the file info into simplefs_dir_block */
-    simplefs_set_file_into_dir(dblock, old_inode->i_ino, dentry->d_name.name);
-
-    eblock->nr_files++;
-    mark_buffer_dirty(bh2);
-    mark_buffer_dirty(bh);
-    brelse(bh2);
-    brelse(bh);
-
-    inode_inc_link_count(old_inode);
-    ihold(old_inode);
-    d_instantiate(dentry, old_inode);
-    return ret;
-
-put_block:
-    if (alloc && eblock->extents[ei].ee_start) {
-        put_blocks(KXCSPACEFS_SB(sb), eblock->extents[ei].ee_start,
-                   eblock->extents[ei].ee_len);
-        memset(&eblock->extents[ei], 0, sizeof(struct simplefs_extent));
-    }
-end:
-    brelse(bh);
-    return ret;
-}
-
 #if SIMPLEFS_AT_LEAST(6, 3, 0)
 static int kxcspacefs_symlink(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, const char* symname)
 #elif SIMPLEFS_AT_LEAST(5, 12, 0)
@@ -691,7 +457,6 @@ static const struct inode_operations kxcspacefs_inode_ops =
     .mkdir = kxcspacefs_mkdir,
     .rmdir = kxcspacefs_rmdir,
     .rename = kxcspacefs_rename,
-    //.link = simplefs_link,
     .symlink = kxcspacefs_symlink,
 };
 

@@ -1,5 +1,5 @@
 obj-m += kxcspacefs.o
-kxcspacefs-objs := fs.o super.o inode.o file.o dir.o extent.o Sha3.o Dict.o CSpaceFS.o
+kxcspacefs-objs := fs.o super.o inode.o file.o dir.o Sha3.o Dict.o CSpaceFS.o
 
 KDIR ?= /lib/modules/$(shell uname -r)/build
 

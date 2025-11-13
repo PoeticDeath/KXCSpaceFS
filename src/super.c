@@ -88,7 +88,7 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
     sb->s_op = &kxcspacefs_super_ops;
 
     /* Read the superblock from disk */
-    bh = sb_bread(sb, SIMPLEFS_SB_BLOCK_NR);
+    bh = sb_bread(sb, 0);
     if (!bh)
     {
         return -EIO;
