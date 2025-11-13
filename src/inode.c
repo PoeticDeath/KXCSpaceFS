@@ -380,16 +380,19 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
     if (iattr->ia_valid & ATTR_MODE)
     {
         chmode(index, iattr->ia_mode, *KMCSFS);
+        inode->i_mode = iattr->ia_mode;
     }
 
     if (iattr->ia_valid & ATTR_UID)
     {
         chuid(index, iattr->ia_uid.val, *KMCSFS);
+        inode->i_uid.val = iattr->ia_uid.val;
     }
 
     if (iattr->ia_valid & ATTR_GID)
     {
         chgid(index, iattr->ia_gid.val, *KMCSFS);
+        inode->i_gid.val = iattr->ia_gid.val;
     }
 
 	if (S_ISREG(inode->i_mode) && (iattr->ia_valid & ATTR_SIZE))
@@ -409,6 +412,7 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
             {
                 dealloc(KMCSFS, index, size, iattr->ia_size);
             }
+            inode->i_size = get_file_size(index, *KMCSFS);
         }
 	}
     up_write(KMCSFS->op_lock);
