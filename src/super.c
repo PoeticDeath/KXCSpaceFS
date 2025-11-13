@@ -17,9 +17,9 @@
 #include "super.h"
 
 struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data);
-void kxcspacefs_kill_sb(struct super_block *sb);
+void kxcspacefs_kill_sb(struct super_block* sb);
 
-static void kxcspacefs_put_super(struct super_block *sb)
+static void kxcspacefs_put_super(struct super_block* sb)
 {
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
@@ -39,7 +39,7 @@ static void kxcspacefs_put_super(struct super_block *sb)
     }
 }
 
-static int kxcspacefs_sync_fs(struct super_block *sb, int wait)
+static int kxcspacefs_sync_fs(struct super_block* sb, int wait)
 {
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
@@ -76,7 +76,7 @@ static struct super_operations kxcspacefs_super_ops =
 };
 
 /* Fill the struct superblock from partition superblock */
-int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
+int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 {
     struct buffer_head* bh = NULL;
     struct inode* root_inode = NULL;
@@ -332,6 +332,10 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
         ret = -ENOMEM;
         goto iput;
     }
+
+	root_inode->i_gid.val = chgid(1, 0, *KMCSFS);
+	root_inode->i_uid.val = chuid(1, 0, *KMCSFS);
+	root_inode->i_mode = chmode(1, 0, *KMCSFS);
 
     return 0;
 

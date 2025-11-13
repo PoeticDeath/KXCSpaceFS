@@ -376,6 +376,10 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
 
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
+    if (!index)
+    {
+        index = 1;
+    }
 
     if (iattr->ia_valid & ATTR_MODE)
     {
