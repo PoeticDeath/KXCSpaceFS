@@ -12,11 +12,11 @@
 static const struct inode_operations kxcspacefs_inode_ops;
 static const struct inode_operations symlink_inode_ops;
 
-/* Either return the inode that corresponds to a given inode number (ino), if
+/* Either return the inode that corresponds to a index or filename, if
  * it is already in the cache, or create a new inode object if it is not in the
  * cache.
  *
- * Note that this function is very similar to simplefs_new_inode, except that
+ * Note that this function is very similar to kxcspacefs_new_inode, except that
  * the requested inode is supposed to be allocated on-disk already. So do not
  * use this to create a completely new inode that has not been allocated on
  * disk.
@@ -108,19 +108,15 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
 
     if (S_ISDIR(inode->i_mode))
     {
-        //ci->ei_block = le32_to_cpu(cinode->ei_block);
         inode->i_fop = &kxcspacefs_dir_ops;
     }
     else if (S_ISREG(inode->i_mode))
     {
-        //ci->ei_block = le32_to_cpu(cinode->ei_block);
         inode->i_fop = &kxcspacefs_file_ops;
         inode->i_mapping->a_ops = &kxcspacefs_aops;
     }
     else if (S_ISLNK(inode->i_mode))
     {
-        //strncpy(ci->i_data, cinode->i_data, sizeof(ci->i_data));
-        //inode->i_link = ci->i_data;
         inode->i_op = &symlink_inode_ops;
     }
 
@@ -172,15 +168,6 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
         return ERR_PTR(inode);
     }
 
-    /* Update directory access time */
-/*#if SIMPLEFS_AT_LEAST(6, 7, 0)
-    inode_set_atime_to_ts(dir, current_time(dir));
-#else
-    dir->i_atime = current_time(dir);
-#endif
-
-    mark_inode_dirty(dir);*/
-
     /* Fill the dentry with the inode */
     d_add(dentry, inode);
 
@@ -194,8 +181,8 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
  * @mode: the mode information of the new inode
  *
  * This is a helper function for the inode operation "create" (implemented in
- * simplefs_create()). It takes care of reserving an inode block on disk (by
- * modifying the inode bitmap), creating a VFS inode object (in memory), and
+ * kxcspacefs_create()). It takes care of reserving an inode block on disk,
+ * creating a VFS inode object (in memory), and
  * attaching filesystem-specific information to that VFS inode.
  */
 static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dentry, mode_t mode)
@@ -242,10 +229,8 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
 }
 
 /* Create a file or directory in this way:
- *   - check filename length and if the parent directory is not full
- *   - create the new inode (allocate inode and blocks)
- *   - cleanup index block of the new inode
- *   - add new file/directory in parent index
+ *   - check filename length
+ *   - create the new inode
  */
 #if SIMPLEFS_AT_LEAST(6, 3, 0)
 static int kxcspacefs_create(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, umode_t mode, bool excl)
@@ -276,13 +261,7 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     return 0;
 }
 
-/* Remove a link for a file including the reference in the parent directory.
- * If link count is 0, destroy file in this way:
- *   - remove the file from its parent directory.
- *   - cleanup blocks containing data
- *   - cleanup file index block
- *   - cleanup inode
- */
+/* Remove the file */
 static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
 {
     struct super_block* sb = dir->i_sb;

@@ -12,14 +12,10 @@
 #include "cspacefs.h"
 
 /*
- * Called when a file is opened in the simplefs.
+ * Called when a file is opened in the kxcspacefs.
  * It checks the flags associated with the file opening mode (O_WRONLY, O_RDWR,
  * O_TRUNC) and performs truncation if the file is being opened for write or
  * read/write and the O_TRUNC flag is set.
- *
- * Truncation is achieved by reading the file's index block from disk, iterating
- * over the data block pointers, releasing the associated data blocks, and
- * updating the inode metadata (size and block count).
  */
 static int kxcspacefs_open(struct inode* inode, struct file* filp)
 {
