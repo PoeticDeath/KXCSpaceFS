@@ -637,114 +637,50 @@ end:
 }
 
 #if SIMPLEFS_AT_LEAST(6, 3, 0)
-static int simplefs_symlink(struct mnt_idmap *id,
-                            struct inode *dir,
-                            struct dentry *dentry,
-                            const char *symname)
+static int kxcspacefs_symlink(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, const char* symname)
 #elif SIMPLEFS_AT_LEAST(5, 12, 0)
-static int simplefs_symlink(struct user_namespace *ns,
-                            struct inode *dir,
-                            struct dentry *dentry,
-                            const char *symname)
+static int kxcspacefs_symlink(struct user_namespace* ns, struct inode* dir, struct dentry* dentry, const char* symname)
 #else
-static int simplefs_symlink(struct inode *dir,
-                            struct dentry *dentry,
-                            const char *symname)
+static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const char* symname)
 #endif
 {
-    struct super_block *sb = dir->i_sb;
+    struct super_block* sb = dir->i_sb;
     unsigned int l = strlen(symname) + 1;
-    struct inode *inode = kxcspacefs_new_inode(dir, dentry, S_IFLNK | S_IRWXUGO);
-    struct simplefs_inode_info *ci = SIMPLEFS_INODE(inode);
-    struct simplefs_inode_info *ci_dir = SIMPLEFS_INODE(dir);
-    struct simplefs_file_ei_block *eblock = NULL;
-    struct simplefs_dir_block *dblock = NULL;
-    struct buffer_head *bh = NULL, *bh2 = NULL;
-    int ret = 0, alloc = false;
-    int ei = 0, bi = 0;
-    uint32_t avail;
 
-    /* Check if symlink content is not too long */
-    if (l > sizeof(ci->i_data))
-        return -ENAMETOOLONG;
-
-    /* fill directory data block */
-    bh = sb_bread(sb, ci_dir->ei_block);
-    if (!bh)
-        return -EIO;
-    eblock = (struct simplefs_file_ei_block *) bh->b_data;
-
-    if (eblock->nr_files == SIMPLEFS_MAX_SUBFILES) {
-        ret = -EMLINK;
-        printk(KERN_INFO "directory is full");
-        goto end;
+    struct inode* inode = kxcspacefs_new_inode(dir, dentry, S_IFLNK | S_IRWXUGO);
+    if (IS_ERR(inode))
+    {
+        return inode;
     }
 
-    int dir_nr_files = eblock->nr_files;
-    avail = simplefs_get_available_ext_idx(&dir_nr_files, eblock);
+    struct file file;
+    file.f_inode = inode;
 
-    /* if there is not any empty space, alloc new one */
-    if (!dir_nr_files && !eblock->extents[avail].ee_start) {
-        ret = simplefs_put_new_ext(sb, avail, eblock);
-        switch (ret) {
-        case -ENOSPC:
-            ret = -ENOSPC;
-            goto end;
-        case -EIO:
-            ret = -EIO;
-            goto put_block;
-        }
-        alloc = true;
-    }
-
-    /* TODO: fix from 8 to dynamic value */
-    /* Find which simplefs_dir_block has free space */
-    for (bi = 0; bi < eblock->extents[avail].ee_len; bi++) {
-        bh2 = sb_bread(sb, eblock->extents[avail].ee_start + bi);
-        if (!bh2) {
-            ret = -EIO;
-            goto put_block;
-        }
-        dblock = (struct simplefs_dir_block *) bh2->b_data;
-        if (dblock->nr_files != SIMPLEFS_FILES_PER_BLOCK)
-            break;
-        else
-            brelse(bh2);
-    }
-
-    /* write the file info into simplefs_dir_block */
-    simplefs_set_file_into_dir(dblock, inode->i_ino, dentry->d_name.name);
-
-    eblock->nr_files++;
-    mark_buffer_dirty(bh2);
-    mark_buffer_dirty(bh);
-    brelse(bh2);
-    brelse(bh);
-
-    inode->i_link = (char *) ci->i_data;
-    memcpy(inode->i_link, symname, l);
-    inode->i_size = l - 1;
-    mark_inode_dirty(inode);
-    d_instantiate(dentry, inode);
-    return 0;
-
-put_block:
-    if (alloc && eblock->extents[ei].ee_start) {
-        put_blocks(KXCSPACEFS_SB(sb), eblock->extents[ei].ee_start,
-                   eblock->extents[ei].ee_len);
-        memset(&eblock->extents[ei], 0, sizeof(struct simplefs_extent));
-    }
-
-end:
-    brelse(bh);
-    return ret;
+    loff_t pos = 0;
+    return kxcspacefs_write(&file, symname, l, &pos);
 }
 
-static const char *simplefs_get_link(struct dentry *dentry,
-                                     struct inode *inode,
-                                     struct delayed_call *done)
+static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inode, struct delayed_call* done)
 {
-    return inode->i_link;
+    struct super_block* sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* fn;
+    fn = inode->i_private;
+
+    uint8_t* data = kzalloc(inode->i_size, GFP_KERNEL);
+    if (!data)
+    {
+        return -ENOMEM;
+    }
+
+    unsigned long long bytes_read = 0;
+    int ret = read_file(sb->s_bdev, *KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read);
+    if (IS_ERR(ret))
+    {
+        return ret;
+    }
+
+    return data;
 }
 
 static const struct inode_operations kxcspacefs_inode_ops =
@@ -756,9 +692,10 @@ static const struct inode_operations kxcspacefs_inode_ops =
     .rmdir = kxcspacefs_rmdir,
     .rename = kxcspacefs_rename,
     //.link = simplefs_link,
-    //.symlink = simplefs_symlink,
+    .symlink = kxcspacefs_symlink,
 };
 
-static const struct inode_operations symlink_inode_ops = {
-    .get_link = simplefs_get_link,
+static const struct inode_operations symlink_inode_ops =
+{
+    .get_link = kxcspacefs_get_link,
 };

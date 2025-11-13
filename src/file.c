@@ -337,7 +337,7 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
     return bytes_read;
 }
 
-static ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, loff_t* ppos)
+ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, loff_t* ppos)
 {
     struct inode* inode = file_inode(file);
     struct super_block* sb = inode->i_sb;
