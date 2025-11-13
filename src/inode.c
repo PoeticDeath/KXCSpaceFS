@@ -86,14 +86,14 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     i_gid_write(inode, chgid(index, 0, *KMCSFS));
     inode->i_size = get_file_size(index, *KMCSFS);
 
-#if SIMPLEFS_AT_LEAST(6, 6, 0)
+#if KXCSPACEFS_AT_LEAST(6, 6, 0)
     inode_set_ctime(inode, (time64_t) chtime(index, 0, 4, *KMCSFS), 0);
 #else
     inode->i_ctime.tv_sec = (time64_t) chtime(index, 0, 4, *KMCSFS);
     inode->i_ctime.tv_nsec = 0;
 #endif
 
-#if SIMPLEFS_AT_LEAST(6, 7, 0)
+#if KXCSPACEFS_AT_LEAST(6, 7, 0)
     inode_set_atime(inode, (time64_t) chtime(index, 0, 0, *KMCSFS), 0);
     inode_set_mtime(inode, (time64_t) chtime(index, 0, 2, *KMCSFS), 0);
 #else
@@ -143,7 +143,7 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     struct inode* inode = NULL;
 
     /* Check filename length */
-    if (dentry->d_name.len > SIMPLEFS_FILENAME_LEN)
+    if (dentry->d_name.len > KXCSPACEFS_FILENAME_LEN)
     {
         return -ENAMETOOLONG;
     }
@@ -232,9 +232,9 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
  *   - check filename length
  *   - create the new inode
  */
-#if SIMPLEFS_AT_LEAST(6, 3, 0)
+#if KXCSPACEFS_AT_LEAST(6, 3, 0)
 static int kxcspacefs_create(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, umode_t mode, bool excl)
-#elif SIMPLEFS_AT_LEAST(5, 12, 0)
+#elif KXCSPACEFS_AT_LEAST(5, 12, 0)
 static int kxcspacefs_create(struct user_namespace* ns, struct inode* dir, struct dentry* dentry, umode_t mode, bool excl)
 #else
 static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t mode, bool excl)
@@ -243,7 +243,7 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     struct inode* inode;
 
     /* Check filename length */
-    if (strlen(dentry->d_name.name) > SIMPLEFS_FILENAME_LEN)
+    if (strlen(dentry->d_name.name) > KXCSPACEFS_FILENAME_LEN)
     {
         return -ENAMETOOLONG;
     }
@@ -282,9 +282,9 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     return delete_file(sb->s_bdev, KMCSFS, fn, get_filename_index(fn, KMCSFS));
 }
 
-#if SIMPLEFS_AT_LEAST(6, 3, 0)
+#if KXCSPACEFS_AT_LEAST(6, 3, 0)
 static int kxcspacefs_rename(struct mnt_idmap* id, struct inode* old_dir, struct dentry* old_dentry, struct inode* new_dir, struct dentry* new_dentry, unsigned int flags)
-#elif SIMPLEFS_AT_LEAST(5, 12, 0)
+#elif KXCSPACEFS_AT_LEAST(5, 12, 0)
 static int kxcspacefs_rename(struct user_namespace* ns, struct inode* old_dir, struct dentry* old_dentry, struct inode* new_dir, struct dentry* new_dentry, unsigned int flags)
 #else
 static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, struct inode* new_dir, struct dentry* new_dentry, unsigned int flags)
@@ -301,7 +301,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     }
 
     /* Check if filename is not too long */
-    if (strlen(new_dentry->d_name.name) > SIMPLEFS_FILENAME_LEN)
+    if (strlen(new_dentry->d_name.name) > KXCSPACEFS_FILENAME_LEN)
     {
         return -ENAMETOOLONG;
     }
@@ -349,12 +349,12 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     return ret;
 }
 
-#if SIMPLEFS_AT_LEAST(6, 3, 0)
+#if KXCSPACEFS_AT_LEAST(6, 3, 0)
 static int kxcspacefs_mkdir(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, umode_t mode)
 {
     return kxcspacefs_create(id, dir, dentry, mode | S_IFDIR, 0);
 }
-#elif SIMPLEFS_AT_LEAST(5, 12, 0)
+#elif KXCSPACEFS_AT_LEAST(5, 12, 0)
 static int kxcspacefs_mkdir(struct user_namespace* ns, struct inode* dir, struct dentry* dentry, umode_t mode)
 {
     return kxcspacefs_create(ns, dir, dentry, mode | S_IFDIR, 0);
@@ -381,9 +381,9 @@ static int kxcspacefs_rmdir(struct inode* dir, struct dentry* dentry)
     return kxcspacefs_unlink(dir, dentry);
 }
 
-#if SIMPLEFS_AT_LEAST(6, 3, 0)
+#if KXCSPACEFS_AT_LEAST(6, 3, 0)
 static int kxcspacefs_symlink(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, const char* symname)
-#elif SIMPLEFS_AT_LEAST(5, 12, 0)
+#elif KXCSPACEFS_AT_LEAST(5, 12, 0)
 static int kxcspacefs_symlink(struct user_namespace* ns, struct inode* dir, struct dentry* dentry, const char* symname)
 #else
 static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const char* symname)

@@ -63,7 +63,7 @@ static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
     stat->f_bavail = stat->f_blocks - KMCSFS->used_blocks;
     stat->f_files = KMCSFS->filecount;
     stat->f_ffree = LLONG_MAX;
-    stat->f_namelen = SIMPLEFS_FILENAME_LEN;
+    stat->f_namelen = KXCSPACEFS_FILENAME_LEN;
 
     return 0;
 }
@@ -311,9 +311,9 @@ int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent)
         goto free_kmcsfs_table;
     }
 
-#if SIMPLEFS_AT_LEAST(6, 3, 0)
+#if KXCSPACEFS_AT_LEAST(6, 3, 0)
     inode_init_owner(&nop_mnt_idmap, root_inode, NULL, root_inode->i_mode);
-#elif SIMPLEFS_AT_LEAST(5, 12, 0)
+#elif KXCSPACEFS_AT_LEAST(5, 12, 0)
     inode_init_owner(&init_user_ns, root_inode, NULL, root_inode->i_mode);
 #else
     inode_init_owner(root_inode, NULL, root_inode->i_mode);

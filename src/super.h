@@ -3,13 +3,13 @@
 #include "Dict.h"
 #include "cspacefs.h"
 
-#define SIMPLEFS_FILENAME_LEN 255
+#define KXCSPACEFS_FILENAME_LEN 255
 
 #ifdef __KERNEL__
 #include <linux/jbd2.h>
 #include <linux/version.h>
 /* compatibility macro */
-#define SIMPLEFS_AT_LEAST(major, minor, rev) LINUX_VERSION_CODE >= KERNEL_VERSION(major, minor, rev)
+#define KXCSPACEFS_AT_LEAST(major, minor, rev) LINUX_VERSION_CODE >= KERNEL_VERSION(major, minor, rev)
 
 /* superblock functions */
 int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent);
