@@ -24,7 +24,7 @@ static const struct inode_operations symlink_inode_ops;
  */
 struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, UNICODE_STRING* fn)
 {
-    struct inode *inode = NULL;
+    struct inode* inode = NULL;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     int ret;
 
@@ -39,7 +39,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     /* Fail if index is out of range */
     if (index >= KMCSFS->filecount || !index)
     {
-        return -ENOENT;
+        return 0;
     }
 
     /* Get a locked inode from Linux */
@@ -143,9 +143,9 @@ failed:
  */
 static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry, unsigned int flags)
 {
-    struct super_block *sb = dir->i_sb;
+    struct super_block* sb = dir->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
-    struct inode *inode = NULL;
+    struct inode* inode = NULL;
 
     /* Check filename length */
     if (dentry->d_name.len > SIMPLEFS_FILENAME_LEN)
@@ -445,187 +445,69 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
 }
 
 #if SIMPLEFS_AT_LEAST(6, 3, 0)
-static int simplefs_rename(struct mnt_idmap *id,
-                           struct inode *old_dir,
-                           struct dentry *old_dentry,
-                           struct inode *new_dir,
-                           struct dentry *new_dentry,
-                           unsigned int flags)
+static int kxcspacefs_rename(struct mnt_idmap* id, struct inode* old_dir, struct dentry* old_dentry, struct inode* new_dir, struct dentry* new_dentry, unsigned int flags)
 #elif SIMPLEFS_AT_LEAST(5, 12, 0)
-static int simplefs_rename(struct user_namespace *ns,
-                           struct inode *old_dir,
-                           struct dentry *old_dentry,
-                           struct inode *new_dir,
-                           struct dentry *new_dentry,
-                           unsigned int flags)
+static int kxcspacefs_rename(struct user_namespace* ns, struct inode* old_dir, struct dentry* old_dentry, struct inode* new_dir, struct dentry* new_dentry, unsigned int flags)
 #else
-static int simplefs_rename(struct inode *old_dir,
-                           struct dentry *old_dentry,
-                           struct inode *new_dir,
-                           struct dentry *new_dentry,
-                           unsigned int flags)
+static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, struct inode* new_dir, struct dentry* new_dentry, unsigned int flags)
 #endif
 {
-    struct super_block *sb = old_dir->i_sb;
-    struct simplefs_inode_info *ci_new = SIMPLEFS_INODE(new_dir);
-    struct inode *src = d_inode(old_dentry);
-    struct buffer_head *bh_new = NULL, *bh2 = NULL;
-    struct simplefs_file_ei_block *eblock_new = NULL;
-    struct simplefs_dir_block *dblock = NULL;
-
-#if SIMPLEFS_AT_LEAST(6, 6, 0) && SIMPLEFS_LESS_EQUAL(6, 7, 0)
-    struct timespec64 cur_time;
-#endif
-
-    int new_pos = -1, ret = 0;
-    int ei = 0, bi = 0, fi = 0, bno = 0;
+    struct super_block* sb = old_dir->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    int ret = 0;
 
     /* fail with these unsupported flags */
     if (flags & (RENAME_EXCHANGE | RENAME_WHITEOUT))
+    {
         return -EINVAL;
+    }
 
     /* Check if filename is not too long */
     if (strlen(new_dentry->d_name.name) > SIMPLEFS_FILENAME_LEN)
+    {
         return -ENAMETOOLONG;
+    }
 
-    /* Fail if new_dentry exists or if new_dir is full */
-    bh_new = sb_bread(sb, ci_new->ei_block);
-    if (!bh_new)
-        return -EIO;
+    /* Get old filename */
+    UNICODE_STRING* oldfn;
+    oldfn = old_dentry->d_inode->i_private;
 
-    eblock_new = (struct simplefs_file_ei_block *) bh_new->b_data;
-    for (ei = 0; new_pos < 0 && ei < SIMPLEFS_MAX_EXTENTS; ei++) {
-        if (!eblock_new->extents[ei].ee_start)
-            break;
+    /* Calculate new filename */
+    UNICODE_STRING* newdir;
+    newdir = new_dir->i_private;
+    UNICODE_STRING nfn;
 
-        for (bi = 0; new_pos < 0 && bi < eblock_new->extents[ei].ee_len; bi++) {
-            bh2 = sb_bread(sb, eblock_new->extents[ei].ee_start + bi);
-            if (!bh2) {
-                ret = -EIO;
-                goto release_new;
+    nfn.Length = newdir->Length + sizeof(WCHAR) + new_dentry->d_name.len;
+    nfn.Buffer = kzalloc(nfn.Length, GFP_KERNEL);
+    if (!nfn.Buffer)
+    {
+        return -ENOMEM;
+    }
+    memcpy(nfn.Buffer, newdir->Buffer, newdir->Length);
+    nfn.Buffer[newdir->Length] = '/';
+    memcpy(nfn.Buffer + newdir->Length + 1, new_dentry->d_name.name, new_dentry->d_name.len);
+
+    /* Fail if new_dentry exists */
+    if (kxcspacefs_iget(sb, 0, &nfn))
+    {
+        if (flags & RENAME_NOREPLACE)
+        {
+            kfree(nfn.Buffer);
+            return -EEXIST;
+        }
+        else
+        {
+            ret = delete_file(sb->s_bdev, KMCSFS, nfn, get_filename_index(nfn, KMCSFS));
+            if (IS_ERR(ret))
+            {
+                kfree(nfn.Buffer);
+                return ret;
             }
-
-            dblock = (struct simplefs_dir_block *) bh2->b_data;
-            int blk_nr_files = dblock->nr_files;
-            for (fi = 0; blk_nr_files;) {
-                /* src and target are the same dir (inode is same) */
-                if (new_dir == old_dir) {
-                    if (dblock->files[fi].inode &&
-                        !strncmp(dblock->files[fi].filename,
-                                 old_dentry->d_name.name,
-                                 SIMPLEFS_FILENAME_LEN)) {
-                        strncpy(dblock->files[fi].filename,
-                                new_dentry->d_name.name, SIMPLEFS_FILENAME_LEN);
-                        mark_buffer_dirty(bh2);
-                        brelse(bh2);
-                        goto release_new;
-                    }
-                } else {
-                    /* src and target are different, then check if the
-                    same name in the target directory */
-                    if (dblock->files[fi].inode &&
-                        !strncmp(dblock->files[fi].filename,
-                                 new_dentry->d_name.name,
-                                 SIMPLEFS_FILENAME_LEN)) {
-                        brelse(bh2);
-                        ret = -EEXIST;
-                        goto release_new;
-                    }
-                    /* find the empty index in target directory */
-                    if (new_pos < 0 && dblock->files[fi].nr_blk != 1) {
-                        new_pos = fi + 1;
-                        break;
-                    }
-                }
-                blk_nr_files--;
-                fi += dblock->files[fi].nr_blk;
-            }
-            brelse(bh2);
         }
     }
 
-    /* If new directory is full, fail */
-    if (new_pos < 0 && eblock_new->nr_files == SIMPLEFS_FILES_PER_EXT) {
-        ret = -EMLINK;
-        goto release_new;
-    }
-
-    /* insert in new parent directory */
-    /* Get new freeblocks for extent if needed*/
-    if (new_pos < 0) {
-        bno = get_free_blocks(sb, SIMPLEFS_MAX_BLOCKS_PER_EXTENT);
-        if (!bno) {
-            ret = -ENOSPC;
-            goto release_new;
-        }
-        eblock_new->extents[ei].ee_start = bno;
-        eblock_new->extents[ei].ee_len = SIMPLEFS_MAX_BLOCKS_PER_EXTENT;
-        eblock_new->extents[ei].ee_block =
-            ei ? eblock_new->extents[ei - 1].ee_block +
-                     eblock_new->extents[ei - 1].ee_len
-               : 0;
-        bh2 = sb_bread(sb, eblock_new->extents[ei].ee_start + 0);
-        if (!bh2) {
-            ret = -EIO;
-            goto put_block;
-        }
-        dblock = (struct simplefs_dir_block *) bh2->b_data;
-        mark_buffer_dirty(bh_new);
-        new_pos = 0;
-    }
-    dblock->files[new_pos].inode = src->i_ino;
-    strncpy(dblock->files[new_pos].filename, new_dentry->d_name.name,
-            SIMPLEFS_FILENAME_LEN);
-    mark_buffer_dirty(bh2);
-    brelse(bh2);
-
-    /* Update new parent inode metadata */
-#if SIMPLEFS_AT_LEAST(6, 7, 0)
-    simple_inode_init_ts(new_dir);
-#elif SIMPLEFS_AT_LEAST(6, 6, 0)
-    cur_time = current_time(new_dir);
-    new_dir->i_atime = new_dir->i_mtime = cur_time;
-    inode_set_ctime_to_ts(new_dir, cur_time);
-#else
-    new_dir->i_atime = new_dir->i_ctime = new_dir->i_mtime =
-        current_time(new_dir);
-#endif
-
-    if (S_ISDIR(src->i_mode))
-        inc_nlink(new_dir);
-    mark_inode_dirty(new_dir);
-
-    /* remove target from old parent directory */
-    ret = simplefs_remove_from_dir(old_dir, old_dentry);
-    if (ret != 0)
-        goto release_new;
-
-        /* Update old parent inode metadata */
-#if SIMPLEFS_AT_LEAST(6, 7, 0)
-    simple_inode_init_ts(old_dir);
-#elif SIMPLEFS_AT_LEAST(6, 6, 0)
-    cur_time = current_time(old_dir);
-    old_dir->i_atime = old_dir->i_mtime = cur_time;
-    inode_set_ctime_to_ts(old_dir, cur_time);
-#else
-    old_dir->i_atime = old_dir->i_ctime = old_dir->i_mtime =
-        current_time(old_dir);
-#endif
-
-    if (S_ISDIR(src->i_mode))
-        drop_nlink(old_dir);
-    mark_inode_dirty(old_dir);
-
-    return ret;
-
-put_block:
-    if (eblock_new->extents[ei].ee_start) {
-        put_blocks(KXCSPACEFS_SB(sb), eblock_new->extents[ei].ee_start,
-                   eblock_new->extents[ei].ee_len);
-        memset(&eblock_new->extents[ei], 0, sizeof(struct simplefs_extent));
-    }
-release_new:
-    brelse(bh_new);
+    ret = rename_file(sb->s_bdev, KMCSFS, *oldfn, nfn);
+    kfree(nfn.Buffer);
     return ret;
 }
 
@@ -861,9 +743,9 @@ static const struct inode_operations kxcspacefs_inode_ops =
     .unlink = kxcspacefs_unlink,
     .mkdir = kxcspacefs_mkdir,
     .rmdir = kxcspacefs_rmdir,
-    .rename = simplefs_rename,
-    .link = simplefs_link,
-    .symlink = simplefs_symlink,
+    .rename = kxcspacefs_rename,
+    //.link = simplefs_link,
+    //.symlink = simplefs_symlink,
 };
 
 static const struct inode_operations symlink_inode_ops = {
