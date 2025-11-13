@@ -899,50 +899,50 @@ static bool is_table_expandable(KMCSpaceFS KMCSFS, unsigned long long newsize)
 	return KMCSFS.size / KMCSFS.sectorsize - nearestsector > sector_align(newsize, KMCSFS.sectorsize) / KMCSFS.sectorsize;
 }
 
-int create_file(struct block_device* bdev, KMCSpaceFS KMCSFS, UNICODE_STRING fn, unsigned long gid, unsigned long uid, unsigned long mode)
+int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn, unsigned long gid, unsigned long uid, unsigned long mode)
 {
 	if ((fn.Buffer[fn.Length / sizeof(WCHAR) - 1] & 0xff) == 0)
 	{
 		fn.Length -= sizeof(WCHAR);
 	}
 
-	if (!is_table_expandable(KMCSFS, KMCSFS.filenamesend + 2 + fn.Length / sizeof(WCHAR) + 1 + 35 * (KMCSFS.filecount + 1)))
+	if (!is_table_expandable(*KMCSFS, KMCSFS->filenamesend + 2 + fn.Length / sizeof(WCHAR) + 1 + 35 * (KMCSFS->filecount + 1)))
 	{
 		pr_err("table is not expandable\n");
 		return -ENOSPC;
 	}
 
-	char* newtablestr = kzalloc(KMCSFS.tablestrlen + 2, GFP_KERNEL);
+	char* newtablestr = kzalloc(KMCSFS->tablestrlen + 2, GFP_KERNEL);
 	if (!newtablestr)
 	{
 		pr_err("out of memory\n");
 		return -ENOMEM;
 	}
 
-	memcpy(newtablestr, KMCSFS.tablestr, KMCSFS.tablestrlen);
-	if (newtablestr[KMCSFS.tablestrlen - 1] == 32)
+	memcpy(newtablestr, KMCSFS->tablestr, KMCSFS->tablestrlen);
+	if (newtablestr[KMCSFS->tablestrlen - 1] == 32)
 	{
-		newtablestr[KMCSFS.tablestrlen - 1] = 46;
-		newtablestr[KMCSFS.tablestrlen] = 32;
-		newtablestr[KMCSFS.tablestrlen + 1] = 0;
+		newtablestr[KMCSFS->tablestrlen - 1] = 46;
+		newtablestr[KMCSFS->tablestrlen] = 32;
+		newtablestr[KMCSFS->tablestrlen + 1] = 0;
 	}
 	else
 	{
-		newtablestr[KMCSFS.tablestrlen] = 46;
-		newtablestr[KMCSFS.tablestrlen + 1] = 0;
-		KMCSFS.tablestrlen++;
+		newtablestr[KMCSFS->tablestrlen] = 46;
+		newtablestr[KMCSFS->tablestrlen + 1] = 0;
+		KMCSFS->tablestrlen++;
 	}
 
-	char* newtable = kzalloc(5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (KMCSFS.filecount + 1), GFP_KERNEL);
+	char* newtable = kzalloc(5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (KMCSFS->filecount + 1), GFP_KERNEL);
 	if (!newtable)
 	{
 		pr_err("out of memory\n");
 		kfree(newtablestr);
 		return -ENOMEM;
 	}
-	memset(newtable, 0, 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (KMCSFS.filecount + 1));
+	memset(newtable, 0, 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (KMCSFS->filecount + 1));
 
-	char* newtablestren = encode(newtablestr, KMCSFS.tablestrlen);
+	char* newtablestren = encode(newtablestr, KMCSFS->tablestrlen);
 	if (!newtablestren)
 	{
 		pr_err("out of memory\n");
@@ -951,34 +951,34 @@ int create_file(struct block_device* bdev, KMCSpaceFS KMCSFS, UNICODE_STRING fn,
 		return -ENOMEM;
 	}
 
-	kfree(KMCSFS.tablestr);
-	KMCSFS.tablestr = newtablestr;
+	kfree(KMCSFS->tablestr);
+	KMCSFS->tablestr = newtablestr;
 
-	newtable[0] = KMCSFS.table[0];
-	unsigned long long extratablesize = 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 2 + fn.Length / sizeof(WCHAR) + 1 + 35 * (KMCSFS.filecount + 1);
-	unsigned long long tablesize = (extratablesize + KMCSFS.sectorsize - 1) / KMCSFS.sectorsize - 1;
+	newtable[0] = KMCSFS->table[0];
+	unsigned long long extratablesize = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 2 + fn.Length / sizeof(WCHAR) + 1 + 35 * (KMCSFS->filecount + 1);
+	unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
 	newtable[1] = (tablesize >> 24) & 0xff;
 	newtable[2] = (tablesize >> 16) & 0xff;
 	newtable[3] = (tablesize >> 8) & 0xff;
 	newtable[4] = tablesize & 0xff;
-	KMCSFS.extratablesize = sector_align(extratablesize, KMCSFS.sectorsize);
-	KMCSFS.tablesize = 1 + tablesize;
+	KMCSFS->extratablesize = sector_align(extratablesize, KMCSFS->sectorsize);
+	KMCSFS->tablesize = 1 + tablesize;
 
-	memcpy(newtable + 5, newtablestren, (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2);
+	memcpy(newtable + 5, newtablestren, (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
 	kfree(newtablestren);
 
-	memcpy(newtable + 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2, KMCSFS.table + KMCSFS.tableend, KMCSFS.filenamesend - KMCSFS.tableend);
+	memcpy(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, KMCSFS->filenamesend - KMCSFS->tableend);
 
-	newtable[5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend] = 255;
+	newtable[5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend] = 255;
 	for (unsigned long long i = 0; i < fn.Length / sizeof(WCHAR); i++)
 	{
-		newtable[5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + i] = ((fn.Buffer[i] & 0xff) == 92) ? 47 : fn.Buffer[i] & 0xff;
+		newtable[5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + i] = ((fn.Buffer[i] & 0xff) == 92) ? 47 : fn.Buffer[i] & 0xff;
 	}
-	newtable[5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR)] = 255;
-	newtable[5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 1] = 254;
+	newtable[5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR)] = 255;
+	newtable[5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 1] = 254;
 
-	memcpy(newtable + 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2, KMCSFS.table + KMCSFS.filenamesend + 2, 24 * KMCSFS.filecount);
-	memcpy(newtable + 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (KMCSFS.filecount + 1), KMCSFS.table + KMCSFS.filenamesend + 2 + 24 * KMCSFS.filecount, 11 * KMCSFS.filecount);
+	memcpy(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2, KMCSFS->table + KMCSFS->filenamesend + 2, 24 * KMCSFS->filecount);
+	memcpy(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (KMCSFS->filecount + 1), KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount, 11 * KMCSFS->filecount);
 
 	char guidmodes[11] = {0};
 	guidmodes[0] = (gid >> 16) & 0xff;
@@ -993,23 +993,23 @@ int create_file(struct block_device* bdev, KMCSpaceFS KMCSFS, UNICODE_STRING fn,
 	guidmodes[8] = (winattrs >> 16) & 0xff;
 	guidmodes[9] = (winattrs >> 8) & 0xff;
 	guidmodes[10] = winattrs & 0xff;
-	memcpy(newtable + 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (KMCSFS.filecount + 1) + 11 * KMCSFS.filecount, guidmodes, 11);
+	memcpy(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (KMCSFS->filecount + 1) + 11 * KMCSFS->filecount, guidmodes, 11);
 
-	kfree(KMCSFS.table);
-	KMCSFS.table = newtable;
+	kfree(KMCSFS->table);
+	KMCSFS->table = newtable;
 
-	AddDictEntry(&KMCSFS.dict, fn.Buffer, KMCSFS.filenamesend - KMCSFS.tableend + 1, fn.Length / sizeof(WCHAR), &KMCSFS.CurDictSize, &KMCSFS.DictSize, KMCSFS.filecount, false);
+	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->filenamesend - KMCSFS->tableend + 1, fn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, KMCSFS->filecount, false);
 
-	KMCSFS.filenamesend = 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2 + KMCSFS.filenamesend - KMCSFS.tableend + 1 + fn.Length / sizeof(WCHAR);
-	KMCSFS.tableend = 5 + (KMCSFS.tablestrlen + KMCSFS.tablestrlen % 2) / 2;
+	KMCSFS->filenamesend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR);
+	KMCSFS->tableend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2;
 
 	ktime_t time = ktime_get();
-	chtime(KMCSFS.filecount, time, 5, KMCSFS);
-	chtime(KMCSFS.filecount, time, 1, KMCSFS);
-	chtime(KMCSFS.filecount, time, 3, KMCSFS);
+	chtime(KMCSFS->filecount, time, 5, *KMCSFS);
+	chtime(KMCSFS->filecount, time, 1, *KMCSFS);
+	chtime(KMCSFS->filecount, time, 3, *KMCSFS);
 
-	KMCSFS.filecount++;
-	sync_write_phys(0, KMCSFS.filenamesend + 2 + 35 * KMCSFS.filecount, newtable, bdev, true);
+	KMCSFS->filecount++;
+	sync_write_phys(0, KMCSFS->filenamesend + 2 + 35 * KMCSFS->filecount, newtable, bdev, true);
 
 	return 0;
 }

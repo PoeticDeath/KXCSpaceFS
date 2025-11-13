@@ -204,25 +204,36 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     struct inode* inode;
     struct super_block* sb = dir->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* pfn = dir->i_private;
     UNICODE_STRING fn;
 
-    fn.Length = dentry->d_name.len;
-    fn.Buffer = dentry->d_name.name;
+    fn.Length = pfn->Length + sizeof(WCHAR) + dentry->d_name.len;
+    fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
+    if (!fn.Buffer)
+    {
+        return -ENOMEM;
+    }
+    memcpy(fn.Buffer, pfn->Buffer, pfn->Length);
+    fn.Buffer[pfn->Length] = '/';
+    memcpy(fn.Buffer + pfn->Length + 1, dentry->d_name.name, dentry->d_name.len);
 
     /* Check mode before doing anything to avoid undoing everything */
     if (!S_ISDIR(mode) && !S_ISREG(mode) && !S_ISLNK(mode))
     {
         pr_err("File type not supported (only directory, regular file and symlink supported)\n");
+        kfree(fn.Buffer);
         return -EINVAL;
     }
 
-    int ret = create_file(sb->s_bdev, *KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode);
+    int ret = create_file(sb->s_bdev, KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode);
     if (IS_ERR(ret))
     {
+        kfree(fn.Buffer);
         return ret;
     }
 
     inode = kxcspacefs_iget(sb, 0, &fn);
+    kfree(fn.Buffer);
     if (IS_ERR(inode))
     {
         return inode;
