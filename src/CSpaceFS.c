@@ -740,8 +740,8 @@ int write_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsi
 						if (init)
 						{
 							sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1 + (start % KMCSFS.sectorsize), min(int2 - int1 - start % KMCSFS.sectorsize, length), data, bdev, false);
-							start += min(int2 - int1 - start % KMCSFS.sectorsize, length);
 							*bytes_written += min(int2 - int1 - start % KMCSFS.sectorsize, length);
+							start += min(int2 - int1 - start % KMCSFS.sectorsize, length);
 							init = false;
 						}
 						else
@@ -754,7 +754,7 @@ int write_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsi
 					break;
 				}
 			}
-			if (bytes_written == length)
+			if (*bytes_written == length)
 			{
 				return 0;
 			}
