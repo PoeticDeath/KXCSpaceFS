@@ -171,15 +171,15 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     /* Search for the file in directory */
     UNICODE_STRING* pfn = dir->i_private;
     UNICODE_STRING fn;
-    fn.Length = pfn->Length + sizeof(WCHAR) + dentry->d_name.len;
+    fn.Length = pfn->Length + (pfn->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + dentry->d_name.len;
     fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
     if (!fn.Buffer)
     {
         return -ENOMEM;
     }
     memcpy(fn.Buffer, pfn->Buffer, pfn->Length);
-    fn.Buffer[pfn->Length] = '/';
-    memcpy(fn.Buffer + pfn->Length + 1, dentry->d_name.name, dentry->d_name.len);
+    fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
+    memcpy(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
     down_read(KMCSFS->op_lock);
     inode = kxcspacefs_iget(sb, 0, &fn);
     up_read(KMCSFS->op_lock);
@@ -213,15 +213,15 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     UNICODE_STRING* pfn = dir->i_private;
     UNICODE_STRING fn;
 
-    fn.Length = pfn->Length + sizeof(WCHAR) + dentry->d_name.len;
+    fn.Length = pfn->Length + (pfn->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + dentry->d_name.len;
     fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
     if (!fn.Buffer)
     {
         return -ENOMEM;
     }
     memcpy(fn.Buffer, pfn->Buffer, pfn->Length);
-    fn.Buffer[pfn->Length] = '/';
-    memcpy(fn.Buffer + pfn->Length + 1, dentry->d_name.name, dentry->d_name.len);
+    fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
+    memcpy(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
     down_write(KMCSFS->op_lock);
     int ret = create_file(sb->s_bdev, KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode);
@@ -286,15 +286,15 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     UNICODE_STRING* pfn = dir->i_private;
     UNICODE_STRING fn;
 
-    fn.Length = pfn->Length + sizeof(WCHAR) + dentry->d_name.len;
+    fn.Length = pfn->Length + (pfn->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + dentry->d_name.len;
     fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
     if (!fn.Buffer)
     {
         return -ENOMEM;
     }
     memcpy(fn.Buffer, pfn->Buffer, pfn->Length);
-    fn.Buffer[pfn->Length] = '/';
-    memcpy(fn.Buffer + pfn->Length + 1, dentry->d_name.name, dentry->d_name.len);
+    fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
+    memcpy(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
     down_write(KMCSFS->op_lock);
     int ret = delete_file(sb->s_bdev, KMCSFS, fn, get_filename_index(fn, KMCSFS));
@@ -336,15 +336,15 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     newdir = new_dir->i_private;
     UNICODE_STRING nfn;
 
-    nfn.Length = newdir->Length + sizeof(WCHAR) + new_dentry->d_name.len;
+    nfn.Length = newdir->Length + (newdir->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + new_dentry->d_name.len;
     nfn.Buffer = kzalloc(nfn.Length, GFP_KERNEL);
     if (!nfn.Buffer)
     {
         return -ENOMEM;
     }
     memcpy(nfn.Buffer, newdir->Buffer, newdir->Length);
-    nfn.Buffer[newdir->Length] = '/';
-    memcpy(nfn.Buffer + newdir->Length + 1, new_dentry->d_name.name, new_dentry->d_name.len);
+    nfn.Buffer[newdir->Length > sizeof(WCHAR) ? newdir->Length : 0] = '/';
+    memcpy(nfn.Buffer + (newdir->Length > sizeof(WCHAR) ? newdir->Length : 0) + 1, new_dentry->d_name.name, new_dentry->d_name.len);
 
     /* Fail if new_dentry exists */
     down_read(KMCSFS->op_lock);
