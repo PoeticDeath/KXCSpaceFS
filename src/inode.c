@@ -131,6 +131,16 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         unlock_new_inode(inode);
     }
 
+    if (S_ISCHR(inode->i_mode) | S_ISBLK(inode->i_mode) | S_ISFIFO(inode->i_mode))
+    {
+        unsigned long long bytes_read = 0;
+        down_read(KMCSFS->op_lock);
+        char buf[sizeof(dev_t)] = {0};
+        read_file(sb->s_bdev, *KMCSFS, buf, 0, sizeof(dev_t), index, &bytes_read, true);
+        memcpy(&inode->i_rdev, buf, sizeof(dev_t));
+        up_read(KMCSFS->op_lock);
+    }
+
     return inode;
 
 failed:
@@ -210,14 +220,6 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     memcpy(fn.Buffer, pfn->Buffer, pfn->Length);
     fn.Buffer[pfn->Length] = '/';
     memcpy(fn.Buffer + pfn->Length + 1, dentry->d_name.name, dentry->d_name.len);
-
-    /* Check mode before doing anything to avoid undoing everything */
-    if (!S_ISDIR(mode) && !S_ISREG(mode) && !S_ISLNK(mode))
-    {
-        pr_err("File type not supported (only directory, regular file and symlink supported)\n");
-        kfree(fn.Buffer);
-        return -EINVAL;
-    }
 
     down_write(KMCSFS->op_lock);
     int ret = create_file(sb->s_bdev, KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode);
@@ -433,6 +435,36 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
 	return ret;
 }
 
+static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, umode_t mode, dev_t dev)
+{
+    struct super_block* sb = dir->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    int ret = kxcspacefs_create(id, dir, dentry, mode, 0);
+    if (IS_ERR(ret))
+    {
+        return ret;
+    }
+
+    struct file file;
+    file.f_inode = dentry->d_inode;
+
+    loff_t pos = 0;
+    UNICODE_STRING* fn = dentry->d_inode->i_private;
+    down_write(KMCSFS->op_lock);
+    unsigned long long index = get_filename_index(*fn, KMCSFS);
+    ret = find_block(sb->s_bdev, KMCSFS, index, sizeof(dev_t));
+    if (!IS_ERR(ret))
+    {
+        dentry->d_inode->i_size = sizeof(dev_t);
+        unsigned long long bytes_written = 0;
+        char buf[sizeof(dev_t)] = {0};
+        memcpy(buf, &dev, sizeof(dev_t));
+        ret = write_file(sb->s_bdev, *KMCSFS, buf, 0, sizeof(dev_t), index, dentry->d_inode->i_size, &bytes_written, true);
+    }
+    up_write(KMCSFS->op_lock);
+    return ret;
+}
+
 #if KXCSPACEFS_AT_LEAST(6, 3, 0)
 static int kxcspacefs_mkdir(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, umode_t mode)
 {
@@ -503,7 +535,7 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     }
 
     unsigned long long bytes_read = 0;
-    int ret = read_file(sb->s_bdev, *KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read);
+    int ret = read_file(sb->s_bdev, *KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read, false);
     if (IS_ERR(ret))
     {
         return ret;
@@ -521,6 +553,7 @@ static const struct inode_operations kxcspacefs_inode_ops =
     .rmdir = kxcspacefs_rmdir,
     .rename = kxcspacefs_rename,
     .setattr = kxcspacefs_setattr,
+    .mknod = kxcspacefs_mknod,
     .symlink = kxcspacefs_symlink,
 };
 
