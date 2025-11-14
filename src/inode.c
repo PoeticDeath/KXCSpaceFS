@@ -139,6 +139,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         read_file(sb->s_bdev, *KMCSFS, buf, 0, sizeof(dev_t), index, &bytes_read, true);
         memcpy(&inode->i_rdev, buf, sizeof(dev_t));
         up_read(KMCSFS->op_lock);
+        init_special_inode(inode, inode->i_mode, inode->i_rdev);
     }
 
     return inode;
@@ -462,6 +463,7 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
         ret = write_file(sb->s_bdev, *KMCSFS, buf, 0, sizeof(dev_t), index, dentry->d_inode->i_size, &bytes_written, true);
     }
     up_write(KMCSFS->op_lock);
+    init_special_inode(dentry->d_inode, mode, dev);
     return ret;
 }
 
