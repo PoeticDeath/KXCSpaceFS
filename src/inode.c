@@ -233,7 +233,9 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
         return ret;
     }
 
+    down_read(KMCSFS->op_lock);
     inode = kxcspacefs_iget(sb, 0, &fn);
+    up_read(KMCSFS->op_lock);
     kfree(fn.Buffer);
     if (IS_ERR(inode))
     {
@@ -345,7 +347,10 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     memcpy(nfn.Buffer + newdir->Length + 1, new_dentry->d_name.name, new_dentry->d_name.len);
 
     /* Fail if new_dentry exists */
-    if (kxcspacefs_iget(sb, 0, &nfn))
+    down_read(KMCSFS->op_lock);
+    ret = kxcspacefs_iget(sb, 0, &nfn);
+    up_read(KMCSFS->op_lock);
+    if (ret)
     {
         if (flags & RENAME_NOREPLACE)
         {
@@ -538,7 +543,9 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     }
 
     unsigned long long bytes_read = 0;
+    down_read(KMCSFS->op_lock);
     int ret = read_file(sb->s_bdev, *KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read, false);
+    up_read(KMCSFS->op_lock);
     if (IS_ERR(ret))
     {
         return ret;
