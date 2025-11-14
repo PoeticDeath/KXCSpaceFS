@@ -65,7 +65,7 @@ $ sudo rmmod kxcspacefs
 ```
 
 ## New License
-'kxcspacefs' is released under the GPL v3 clause licence. Use of this source code
+`kxcspacefs` is released under the GPL v3 clause licence. Use of this source code
 is governed by a GPL-style license that can be found in the LICENSE file.
 
 ## Old License
