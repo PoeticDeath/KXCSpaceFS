@@ -59,6 +59,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         }
     }
 
+    inode->i_ino = index;
     inode->i_private = NULL;
     if (fn)
     {
@@ -80,9 +81,9 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         }
         memcpy(ofn->Buffer, fn->Buffer, fn->Length);
         inode->i_private = ofn;
+        inode->i_ino = KMCSFS->dict[FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, ofn->Buffer, ofn->Length)].hash;
     }
 
-    inode->i_ino = index;
     inode->i_sb = sb;
     inode->i_op = &kxcspacefs_inode_ops;
 
