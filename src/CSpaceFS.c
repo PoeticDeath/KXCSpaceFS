@@ -52,7 +52,7 @@ void sync_write_phys(unsigned long long offset, unsigned long long length, char*
 			sync_dirty_buffer(data);
 			brelse(data);
 		}
-		i -= offset % 512;
+		offset -= offset % 512;
 	}
 	pagefault_enable();
 }
