@@ -52,7 +52,8 @@ void sync_write_phys(unsigned long long offset, unsigned long long length, char*
 			sync_dirty_buffer(data);
 			brelse(data);
 		}
-		offset -= offset % 512;
+		i -= offset % 512;
+		offset += (512 - offset % 512) * min(offset % 512, 1);
 	}
 	pagefault_enable();
 }
