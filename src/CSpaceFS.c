@@ -19,6 +19,7 @@ static unsigned long long sector_align(unsigned long long n, unsigned long long 
 
 void sync_read_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev)
 {
+	pagefault_disable();
 	for (unsigned long long i = 0; i < length; i += 512)
 	{
 		struct buffer_head* data = __bread(bdev, offset / 512 + i / 512, 512);
@@ -28,10 +29,12 @@ void sync_read_phys(unsigned long long offset, unsigned long long length, char* 
 			brelse(data);
 		}
 	}
+	pagefault_enable();
 }
 
 void sync_write_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev, bool kern)
 {
+	pagefault_disable();
 	for (unsigned long long i = 0; i < length; i += 512)
 	{
 		struct buffer_head* data = __bread(bdev, offset / 512 + i / 512, 512);
@@ -51,6 +54,7 @@ void sync_write_phys(unsigned long long offset, unsigned long long length, char*
 		}
 		i -= offset % 512;
 	}
+	pagefault_enable();
 }
 
 void init_maps(void)
