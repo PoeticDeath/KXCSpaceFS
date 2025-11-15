@@ -106,6 +106,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
     KMCSFS->tablesize = 1 + (bh->b_data[4] & 0xff) + ((bh->b_data[3] & 0xff) << 8) + ((bh->b_data[2] & 0xff) << 16) + ((bh->b_data[1] & 0xff) << 24);
     KMCSFS->extratablesize = (unsigned long long)KMCSFS->sectorsize * KMCSFS->tablesize;
     KMCSFS->size = sb->s_bdev->bd_nr_sectors * 512;
+	KMCSFS->size -= KMCSFS->size % KMCSFS->sectorsize;
     KMCSFS->used_blocks = 0;
     KMCSFS->table = kzalloc(KMCSFS->extratablesize, GFP_KERNEL);
     if (!KMCSFS->table)
