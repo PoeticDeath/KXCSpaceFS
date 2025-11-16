@@ -2118,21 +2118,13 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	if (dindex)
 	{
 		unsigned long long filenameloc = KMCSFS->dict[dindex].filenameloc;
-		unsigned long long opencount = KMCSFS->dict[dindex].opencount;
-		unsigned long long flags = KMCSFS->dict[dindex].flags;
-		unsigned long long streamdeletecount = KMCSFS->dict[dindex].streamdeletecount;
-		struct _fcb* fcb = KMCSFS->dict[dindex].fcb;
-		char* filename = KMCSFS->dict[dindex].filename;
+		struct inode* inode = KMCSFS->dict[dindex].inode;
 		RemoveDictEntry(KMCSFS->dict, KMCSFS->DictSize, dindex, fn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize);
 		AddDictEntry(&KMCSFS->dict, nfn.Buffer, filenameloc, nfn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, true);
 		dindex = FindDictEntry(KMCSFS->dict, newtable, KMCSFS->tableend, KMCSFS->DictSize, nfn.Buffer, nfn.Length / sizeof(WCHAR));
 		if (dindex)
 		{
-			KMCSFS->dict[dindex].opencount = opencount;
-			KMCSFS->dict[dindex].flags = flags;
-			KMCSFS->dict[dindex].streamdeletecount = streamdeletecount;
-			KMCSFS->dict[dindex].fcb = fcb;
-			KMCSFS->dict[dindex].filename = filename;
+			KMCSFS->dict[dindex].inode = inode;
 		}
 	}
 

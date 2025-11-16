@@ -25,12 +25,21 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
 {
     struct inode* inode = NULL;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    unsigned long long dindex = 0;
     int ret;
 
     if (fn)
     {
         if (fn->Buffer)
         {
+            dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+            if (dindex)
+            {
+                if (KMCSFS->dict[dindex].inode)
+                {
+                    return KMCSFS->dict[dindex].inode;
+                }
+            }
             index = get_filename_index(*fn, KMCSFS);
         }
     }
@@ -81,7 +90,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         }
         memcpy(ofn->Buffer, fn->Buffer, fn->Length);
         inode->i_private = ofn;
-        inode->i_ino = KMCSFS->dict[FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, ofn->Buffer, ofn->Length)].hash;
+        inode->i_ino = KMCSFS->dict[dindex].hash;
     }
 
     inode->i_sb = sb;
@@ -141,6 +150,11 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         memcpy(&inode->i_rdev, buf, sizeof(dev_t));
         up_read(KMCSFS->op_lock);
         init_special_inode(inode, inode->i_mode, inode->i_rdev);
+    }
+
+    if (dindex)
+    {
+        KMCSFS->dict[dindex].inode = inode;
     }
 
     return inode;

@@ -12,11 +12,7 @@ typedef struct _Dict
 	unsigned long long hash;
 	unsigned long long index;
 
-	unsigned long long opencount;
-	unsigned long long flags;
-	unsigned long long streamdeletecount;
-	struct _fcb* fcb;
-	char* filename;
+	struct inode* inode;
 } Dict;
 
 bool incmp(unsigned char a, unsigned char b);

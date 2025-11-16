@@ -63,11 +63,7 @@ startover:
 			ndict[j].filenameloc = dict[i].filenameloc;
 			ndict[j].hash = hash;
 			ndict[j].index = dict[i].index;
-			ndict[j].opencount = dict[i].opencount;
-			ndict[j].flags = dict[i].flags;
-			ndict[j].streamdeletecount = dict[i].streamdeletecount;
-			ndict[j].fcb = dict[i].fcb;
-			ndict[j].filename = dict[i].filename;
+			ndict[j].inode = dict[i].inode;
 		}
 	}
 	return ndict;
