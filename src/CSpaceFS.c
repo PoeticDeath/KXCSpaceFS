@@ -35,7 +35,7 @@ void sync_read_phys(unsigned long long offset, unsigned long long length, char* 
 void sync_write_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev, bool kern)
 {
 	pagefault_disable();
-	for (unsigned long long i = 0; i < length; i += 512)
+	for (unsigned long long i = 0; i < length;)
 	{
 		struct buffer_head* data = __bread(bdev, offset / 512 + i / 512, 512);
 		if (data)
@@ -52,8 +52,8 @@ void sync_write_phys(unsigned long long offset, unsigned long long length, char*
 			sync_dirty_buffer(data);
 			brelse(data);
 		}
-		i -= offset % 512;
-		offset += (512 - offset % 512) * min(offset % 512, 1);
+		i += min(512 - offset % 512, length - i);
+		offset += (512 - offset % 512) % 512;
 	}
 	pagefault_enable();
 }
