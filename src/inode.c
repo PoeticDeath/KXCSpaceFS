@@ -388,7 +388,18 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     down_write(KMCSFS->op_lock);
     ret = rename_file(sb->s_bdev, KMCSFS, *oldfn, nfn);
     up_write(KMCSFS->op_lock);
-    kfree(nfn.Buffer);
+    if (!IS_ERR(ret))
+    {
+        unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, nfn.Buffer, nfn.Length);
+        KMCSFS->dict[dindex].inode = old_dentry->d_inode;
+        kfree(oldfn->Buffer);
+        oldfn->Length = nfn.Length;
+        oldfn->Buffer = nfn.Buffer;
+    }
+    else
+    {
+        kfree(nfn.Buffer);
+    }
     return ret;
 }
 
