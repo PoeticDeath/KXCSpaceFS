@@ -330,6 +330,6 @@ sha3_return_t sha3_HashBuffer(unsigned bitSize, enum SHA3_FLAGS flags, const voi
     {
         outBytes = bitSize/8;
     }
-    memcpy(out, h, outBytes);
+    memmove(out, h, outBytes);
     return SHA3_RETURN_OK;
 }

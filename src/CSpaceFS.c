@@ -25,7 +25,7 @@ void sync_read_phys(unsigned long long offset, unsigned long long length, char* 
 		struct buffer_head* data = __bread(bdev, offset / 512 + i / 512, 512);
 		if (data)
 		{
-			memcpy(buf + i, data->b_data, 512);
+			memmove(buf + i, data->b_data, 512);
 			brelse(data);
 		}
 	}
@@ -42,7 +42,7 @@ void sync_write_phys(unsigned long long offset, unsigned long long length, char*
 		{
 			if (kern)
 			{
-				memcpy(data->b_data + offset % 512, buf + i, min(512 - offset % 512, length - i));
+				memmove(data->b_data + offset % 512, buf + i, min(512 - offset % 512, length - i));
 			}
 			else
 			{
@@ -99,7 +99,7 @@ char* encode(char* str, unsigned long long len)
 			pr_err("out of memory\n");
 			return NULL;
 		}
-		memcpy(alc, str, len - 1);
+		memmove(alc, str, len - 1);
 		alc[len - 1] = 32;
 		alc[len - 2] = 46;
 	}
@@ -231,26 +231,26 @@ unsigned long long chtime(unsigned long long filenameindex, unsigned long long t
 	if (!(ch % 2))
 	{
 		char tim[8] = {0};
-		memcpy(tim, KMCSFS.table + KMCSFS.filenamesend + 2 + filenameindex * 24 + o, 8);
+		memmove(tim, KMCSFS.table + KMCSFS.filenamesend + 2 + filenameindex * 24 + o, 8);
 		char ti[8] = {0};
 		for (unsigned i = 0; i < 8; i++)
 		{
 			ti[i] = tim[7 - i];
 		}
 		unsigned long long rtime = 0;
-		memcpy(&rtime, ti, 8);
+		memmove(&rtime, ti, 8);
 		return rtime;
 	}
 	else
 	{
 		char ti[8] = {0};
-		memcpy(ti, &time, 8);
+		memmove(ti, &time, 8);
 		char tim[8] = {0};
 		for (unsigned i = 0; i < 8; i++)
 		{
 			tim[i] = ti[7 - i];
 		}
-		memcpy(KMCSFS.table + KMCSFS.filenamesend + 2 + filenameindex * 24 + o, tim, 8);
+		memmove(KMCSFS.table + KMCSFS.filenamesend + 2 + filenameindex * 24 + o, tim, 8);
 		return 0;
 	}
 }
@@ -521,7 +521,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 								sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize + (start % KMCSFS.sectorsize) - (start % 512), min(sector_align(KMCSFS.sectorsize - start % KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % KMCSFS.sectorsize) - (start % 512), bdev);
 								if (kern)
 								{
-									memcpy(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
+									memmove(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
 								}
 								else
 								{
@@ -536,7 +536,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 								sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize, min(KMCSFS.sectorsize, length - *bytes_read), buf, bdev);
 								if (kern)
 								{
-									memcpy(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
+									memmove(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
 								}
 								else
 								{
@@ -559,7 +559,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + (start % KMCSFS.sectorsize) - (start % 512), min(sector_align(KMCSFS.sectorsize - start % KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % KMCSFS.sectorsize) - (start % 512), bdev);
 							if (kern)
 							{
-								memcpy(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
+								memmove(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
 							}
 							else
 							{
@@ -574,7 +574,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize, min(KMCSFS.sectorsize, length - *bytes_read), buf, bdev);
 							if (kern)
 							{
-								memcpy(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
+								memmove(data + *bytes_read, buf, min(KMCSFS.sectorsize, length - *bytes_read));
 							}
 							else
 							{
@@ -596,7 +596,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 						{
 							if (kern)
 							{
-								memcpy(data, buf + int1 + (start % KMCSFS.sectorsize), min(int2 - int1, length));
+								memmove(data, buf + int1 + (start % KMCSFS.sectorsize), min(int2 - int1, length));
 							}
 							else
 							{
@@ -610,7 +610,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 						{
 							if (kern)
 							{
-								memcpy(data + *bytes_read, buf + int1, min(int2 - int1, length - *bytes_read));
+								memmove(data + *bytes_read, buf + int1, min(int2 - int1, length - *bytes_read));
 							}
 							else
 							{
@@ -966,7 +966,7 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 		return -ENOMEM;
 	}
 
-	memcpy(newtablestr, KMCSFS->tablestr, KMCSFS->tablestrlen);
+	memmove(newtablestr, KMCSFS->tablestr, KMCSFS->tablestrlen);
 	if (newtablestr[KMCSFS->tablestrlen - 1] == 32)
 	{
 		newtablestr[KMCSFS->tablestrlen - 1] = 46;
@@ -1011,10 +1011,10 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	KMCSFS->extratablesize = sector_align(extratablesize, KMCSFS->sectorsize);
 	KMCSFS->tablesize = 1 + tablesize;
 
-	memcpy(newtable + 5, newtablestren, (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
+	memmove(newtable + 5, newtablestren, (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
 	kfree(newtablestren);
 
-	memcpy(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, KMCSFS->filenamesend - KMCSFS->tableend);
+	memmove(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, KMCSFS->filenamesend - KMCSFS->tableend);
 
 	newtable[5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend] = 255;
 	for (unsigned long long i = 0; i < fn.Length / sizeof(WCHAR); i++)
@@ -1024,8 +1024,8 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	newtable[5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR)] = 255;
 	newtable[5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 1] = 254;
 
-	memcpy(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2, KMCSFS->table + KMCSFS->filenamesend + 2, 24 * KMCSFS->filecount);
-	memcpy(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (KMCSFS->filecount + 1), KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount, 11 * KMCSFS->filecount);
+	memmove(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2, KMCSFS->table + KMCSFS->filenamesend + 2, 24 * KMCSFS->filecount);
+	memmove(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (KMCSFS->filecount + 1), KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount, 11 * KMCSFS->filecount);
 
 	char guidmodes[11] = {0};
 	guidmodes[0] = (gid >> 16) & 0xff;
@@ -1040,7 +1040,7 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	guidmodes[8] = (winattrs >> 16) & 0xff;
 	guidmodes[9] = (winattrs >> 8) & 0xff;
 	guidmodes[10] = winattrs & 0xff;
-	memcpy(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (KMCSFS->filecount + 1) + 11 * KMCSFS->filecount, guidmodes, 11);
+	memmove(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (KMCSFS->filecount + 1) + 11 * KMCSFS->filecount, guidmodes, 11);
 
 	kfree(KMCSFS->table);
 	KMCSFS->table = newtable;
@@ -1118,7 +1118,7 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 									char num0[21] = {0};
 									sprintf(num0, "%llu", int3);
 									unsigned num0len = strlen(num0);
-									memcpy(KMCSFS->tablestr + offset + num0len, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i + num0len);
+									memmove(KMCSFS->tablestr + offset + num0len, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i + num0len);
 									memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset + num0len, 0, i - offset - num0len);
 									KMCSFS->tablestrlen -= i - offset - num0len;
 									i = offset + num0len;
@@ -1131,8 +1131,8 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 									char num1[21] = {0};
 									sprintf(num1, "%llu", int3 + o - 1);
 									unsigned num1len = strlen(num1);
-									memcpy(KMCSFS->tablestr + offset + num0len + 1, num1, num1len);
-									memcpy(KMCSFS->tablestr + offset + num0len + 1 + num1len, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i + num0len + 1 + num1len);
+									memmove(KMCSFS->tablestr + offset + num0len + 1, num1, num1len);
+									memmove(KMCSFS->tablestr + offset + num0len + 1 + num1len, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i + num0len + 1 + num1len);
 									memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset + num0len + 1 + num1len, 0, i - offset - num0len - 1 - num1len);
 									KMCSFS->tablestrlen -= i - offset - num0len - 1 - num1len;
 									i = offset + num0len + 1 + num1len;
@@ -1140,7 +1140,7 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 							}
 							else
 							{
-								memcpy(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
+								memmove(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
 								memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, 0, i - offset);
 								KMCSFS->tablestrlen -= i - offset;
 								i = offset;
@@ -1157,7 +1157,7 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 						filesize += KMCSFS->sectorsize;
 						if (filesize > newsize)
 						{
-							memcpy(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
+							memmove(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
 							memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, 0, i - offset);
 							KMCSFS->tablestrlen -= i - offset;
 							i = offset;
@@ -1173,7 +1173,7 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 						filesize += int2 - int1;
 						if (filesize > newsize)
 						{
-							memcpy(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
+							memmove(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
 							memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, 0, i - offset);
 							KMCSFS->tablestrlen -= i - offset;
 							i = offset;
@@ -1431,13 +1431,13 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 								kfree(used_bytes);
 								return false;
 							}
-							memcpy(newtable, KMCSFS->tablestr, loc);
+							memmove(newtable, KMCSFS->tablestr, loc);
 							newtable[loc] = *",";
 							char num[21] = {0};
 							sprintf(num, "%llu", cursector);
 							unsigned numlen = strlen(num);
-							memcpy(newtable + loc + 1, num, numlen);
-							memcpy(newtable + loc + numlen + 1, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+							memmove(newtable + loc + 1, num, numlen);
+							memmove(newtable + loc + numlen + 1, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
 							kfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += numlen + 1;
@@ -1456,12 +1456,12 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 								kfree(used_bytes);
 								return false;
 							}
-							memcpy(newtable, KMCSFS->tablestr, loc);
+							memmove(newtable, KMCSFS->tablestr, loc);
 							char num[21] = {0};
 							sprintf(num, "%llu", cursector);
 							unsigned numlen = strlen(num);
-							memcpy(newtable + loc, num, numlen);
-							memcpy(newtable + loc + numlen, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+							memmove(newtable + loc, num, numlen);
+							memmove(newtable + loc + numlen, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
 							kfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += numlen;
@@ -1493,20 +1493,20 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 								kfree(used_bytes);
 								return false;
 							}
-							memcpy(newtable, KMCSFS->tablestr, loc);
+							memmove(newtable, KMCSFS->tablestr, loc);
 							newtable[loc] = *",";
 							char num1[21] = {0};
 							sprintf(num1, "%llu", cursector);
 							unsigned num1len = strlen(num1);
-							memcpy(newtable + loc + 1, num1, num1len);
+							memmove(newtable + loc + 1, num1, num1len);
 							newtable[loc + 1 + num1len] = *";";
 							newtable[loc + 1 + num1len + 1] = *"0";
 							newtable[loc + 1 + num1len + 2] = *";";
 							char num3[21] = {0};
 							sprintf(num3, "%llu", size % KMCSFS->sectorsize);
 							unsigned num3len = strlen(num3);
-							memcpy(newtable + loc + 1 + num1len + 3, num3, num3len);
-							memcpy(newtable + loc + 1 + num1len + 3 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+							memmove(newtable + loc + 1 + num1len + 3, num3, num3len);
+							memmove(newtable + loc + 1 + num1len + 3 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
 							kfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += num1len + num3len + 4;
@@ -1528,19 +1528,19 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 								kfree(used_bytes);
 								return false;
 							}
-							memcpy(newtable, KMCSFS->tablestr, loc);
+							memmove(newtable, KMCSFS->tablestr, loc);
 							char num1[21] = {0};
 							sprintf(num1, "%llu", cursector);
 							unsigned num1len = strlen(num1);
-							memcpy(newtable + loc, num1, num1len);
+							memmove(newtable + loc, num1, num1len);
 							newtable[loc + num1len] = *";";
 							newtable[loc + num1len + 1] = *"0";
 							newtable[loc + num1len + 2] = *";";
 							char num3[21] = {0};
 							sprintf(num3, "%llu", size % KMCSFS->sectorsize);
 							unsigned num3len = strlen(num3);
-							memcpy(newtable + loc + num1len + 3, num3, num3len);
-							memcpy(newtable + loc + num1len + 3 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+							memmove(newtable + loc + num1len + 3, num3, num3len);
+							memmove(newtable + loc + num1len + 3 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
 							kfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += num1len + num3len + 3;
@@ -1566,7 +1566,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 								kfree(used_bytes);
 								return false;
 							}
-							memcpy(tablestr, KMCSFS->tablestr, KMCSFS->tablestrlen);
+							memmove(tablestr, KMCSFS->tablestr, KMCSFS->tablestrlen);
 						}
 
 						if (!used_sector_bytes)
@@ -1599,12 +1599,9 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 									switch (cur)
 									{
 									case 0:
-										if (temptablestrlen >= strsize)
-										{
-											memcpy(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
-											temptablestrlen -= strsize;
-											o -= strsize;
-										}
+										memmove(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
+										temptablestrlen -= strsize;
+										o -= strsize;
 										break;
 									case 1:
 										break;
@@ -1613,12 +1610,9 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 										{
 											used_sector_bytes[p / sizeof(unsigned long long) / 8] |= ((unsigned long long)1 << (p % (sizeof(unsigned long long) * 8)));
 										}
-										if (temptablestrlen >= strsize)
-										{
-											memcpy(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
-											temptablestrlen -= strsize;
-											o -= strsize;
-										}
+										memmove(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
+										temptablestrlen -= strsize;
+										o -= strsize;
 										break;
 									}
 									o--;
@@ -1705,24 +1699,24 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 									kfree(used_sector_bytes);
 									return false;
 								}
-								memcpy(newtable, KMCSFS->tablestr, loc);
+								memmove(newtable, KMCSFS->tablestr, loc);
 								newtable[loc] = *",";
 								char num1[21] = {0};
 								sprintf(num1, "%llu", cursector);
 								unsigned num1len = strlen(num1);
-								memcpy(newtable + loc + 1, num1, num1len);
+								memmove(newtable + loc + 1, num1, num1len);
 								newtable[loc + 1 + num1len] = *";";
 								char num2[21] = {0};
 								sprintf(num2, "%llu", offset - size);
 								newoffset = offset - size;
 								unsigned num2len = strlen(num2);
-								memcpy(newtable + loc + 1 + num1len + 1, num2, num2len);
+								memmove(newtable + loc + 1 + num1len + 1, num2, num2len);
 								newtable[loc + 1 + num1len + 1 + num2len] = *";";
 								char num3[21] = {0};
 								sprintf(num3, "%llu", offset);
 								unsigned num3len = strlen(num3);
-								memcpy(newtable + loc + 1 + num1len + 1 + num2len + 1, num3, num3len);
-								memcpy(newtable + loc + 1 + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+								memmove(newtable + loc + 1 + num1len + 1 + num2len + 1, num3, num3len);
+								memmove(newtable + loc + 1 + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
 								kfree(KMCSFS->tablestr);
 								KMCSFS->tablestr = newtable;
 								KMCSFS->tablestrlen += num1len + 1 + num2len + 1 + num3len + 1;
@@ -1746,23 +1740,23 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 									kfree(used_sector_bytes);
 									return false;
 								}
-								memcpy(newtable, KMCSFS->tablestr, loc);
+								memmove(newtable, KMCSFS->tablestr, loc);
 								char num1[21] = {0};
 								sprintf(num1, "%llu", cursector);
 								unsigned num1len = strlen(num1);
-								memcpy(newtable + loc, num1, num1len);
+								memmove(newtable + loc, num1, num1len);
 								newtable[loc + num1len] = *";";
 								char num2[21] = {0};
 								sprintf(num2, "%llu", offset - size);
 								newoffset = offset - size;
 								unsigned num2len = strlen(num2);
-								memcpy(newtable + loc + num1len + 1, num2, num2len);
+								memmove(newtable + loc + num1len + 1, num2, num2len);
 								newtable[loc + num1len + 1 + num2len] = *";";
 								char num3[21] = {0};
 								sprintf(num3, "%llu", offset);
 								unsigned num3len = strlen(num3);
-								memcpy(newtable + loc + num1len + 1 + num2len + 1, num3, num3len);
-								memcpy(newtable + loc + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
+								memmove(newtable + loc + num1len + 1 + num2len + 1, num3, num3len);
+								memmove(newtable + loc + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
 								kfree(KMCSFS->tablestr);
 								KMCSFS->tablestr = newtable;
 								KMCSFS->tablestrlen += num1len + 1 + num2len + 1 + num3len;
@@ -1824,9 +1818,9 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 			newtable[2] = (tablesize >> 16) & 0xff;
 			newtable[3] = (tablesize >> 8) & 0xff;
 			newtable[4] = tablesize & 0xff;
-			memcpy(newtable + 5, newtablestren, (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
+			memmove(newtable + 5, newtablestren, (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
 			kfree(newtablestren);
-			memcpy(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, extratablesize - 5 - (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
+			memmove(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, extratablesize - 5 - (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
 			KMCSFS->extratablesize = extratablesize;
 			KMCSFS->tablesize = 1 + tablesize;
 			KMCSFS->filenamesend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend;
@@ -2011,8 +2005,8 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 		}
 	}
 	unsigned long long tablestrlen = KMCSFS->tablestrlen - tablelen;
-	memcpy(newtablestr, KMCSFS->tablestr, tableloc);
-	memcpy(newtablestr + tableloc, KMCSFS->tablestr + tableloc + tablelen, KMCSFS->tablestrlen - tableloc - tablelen);
+	memmove(newtablestr, KMCSFS->tablestr, tableloc);
+	memmove(newtablestr + tableloc, KMCSFS->tablestr + tableloc + tablelen, KMCSFS->tablestrlen - tableloc - tablelen);
 	char* newtablestren = encode(newtablestr, tablestrlen);
 	if (!newtablestren)
 	{
@@ -2028,14 +2022,14 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 	newtable[2] = (tablesize >> 16) & 0xff;
 	newtable[3] = (tablesize >> 8) & 0xff;
 	newtable[4] = tablesize & 0xff;
-	memcpy(newtable + 5, newtablestren, (tablestrlen + tablestrlen % 2) / 2);
+	memmove(newtable + 5, newtablestren, (tablestrlen + tablestrlen % 2) / 2);
 	kfree(newtablestren);
-	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, loc - KMCSFS->tableend);
-	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + loc - KMCSFS->tableend, KMCSFS->table + loc + len, KMCSFS->filenamesend - loc - len + 2);
-	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2, KMCSFS->table + KMCSFS->filenamesend + 2, 24 * index);
-	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * (index + 1), 24 * (KMCSFS->filecount - index - 1));
-	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1), KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount, 11 * index);
-	memcpy(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1) + 11 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount + 11 * (index + 1), 11 * (KMCSFS->filecount - index - 1));
+	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, loc - KMCSFS->tableend);
+	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + loc - KMCSFS->tableend, KMCSFS->table + loc + len, KMCSFS->filenamesend - loc - len + 2);
+	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2, KMCSFS->table + KMCSFS->filenamesend + 2, 24 * index);
+	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * (index + 1), 24 * (KMCSFS->filecount - index - 1));
+	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1), KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount, 11 * index);
+	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1) + 11 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount + 11 * (index + 1), 11 * (KMCSFS->filecount - index - 1));
 	sync_write_phys(0, 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 35 * (KMCSFS->filecount - 1), newtable, bdev, true);
 
 	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, filename.Buffer, filename.Length / sizeof(WCHAR));
@@ -2108,7 +2102,7 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	newtable[2] = (tablesize >> 16) & 0xff;
 	newtable[3] = (tablesize >> 8) & 0xff;
 	newtable[4] = tablesize & 0xff;
-	memcpy(newtable + 5, KMCSFS->table + 5, loc - 5);
+	memmove(newtable + 5, KMCSFS->table + 5, loc - 5);
 	newtable[loc] = *"\xff";
 	for (unsigned long long i = 0; i < nfn.Length / sizeof(WCHAR); i++)
 	{
@@ -2118,7 +2112,7 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 			newtable[loc + i + 1] = 47;
 		}
 	}
-	memcpy(newtable + loc + 1 + nfn.Length / sizeof(WCHAR), KMCSFS->table + loc + 1 + fn.Length / sizeof(WCHAR), KMCSFS->filenamesend - loc - 1 - fn.Length / sizeof(WCHAR) + 2 + 35 * KMCSFS->filecount);
+	memmove(newtable + loc + 1 + nfn.Length / sizeof(WCHAR), KMCSFS->table + loc + 1 + fn.Length / sizeof(WCHAR), KMCSFS->filenamesend - loc - 1 - fn.Length / sizeof(WCHAR) + 2 + 35 * KMCSFS->filecount);
 
 	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn.Buffer, fn.Length / sizeof(WCHAR));
 	if (dindex)
