@@ -1602,9 +1602,9 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 										if (temptablestrlen >= o)
 										{
 											memcpy(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
+											temptablestrlen -= strsize;
+											o -= strsize;
 										}
-										temptablestrlen -= strsize;
-										o -= strsize;
 										break;
 									case 1:
 										break;
@@ -1616,9 +1616,9 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 										if (temptablestrlen >= o)
 										{
 											memcpy(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
+											temptablestrlen -= strsize;
+											o -= strsize;
 										}
-										temptablestrlen -= strsize;
-										o -= strsize;
 										break;
 									}
 									o--;
