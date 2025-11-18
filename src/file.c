@@ -82,11 +82,6 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
     ssize_t bytes_write = 0;
     loff_t pos = *ppos;
 
-    if (pos > inode->i_size)
-    {
-        return 0;
-    }
-
     unsigned long long plen = pos + len;
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
