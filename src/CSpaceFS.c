@@ -1599,7 +1599,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 									switch (cur)
 									{
 									case 0:
-										if (temptablestrlen >= o)
+										if (temptablestrlen >= strsize)
 										{
 											memcpy(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
 											temptablestrlen -= strsize;
@@ -1613,7 +1613,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 										{
 											used_sector_bytes[p / sizeof(unsigned long long) / 8] |= ((unsigned long long)1 << (p % (sizeof(unsigned long long) * 8)));
 										}
-										if (temptablestrlen >= o)
+										if (temptablestrlen >= strsize)
 										{
 											memcpy(tablestr + o - strsize, tablestr + o, temptablestrlen - o);
 											temptablestrlen -= strsize;
