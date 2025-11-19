@@ -474,6 +474,18 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
         inode->i_gid.val = iattr->ia_gid.val;
     }
 
+    if (iattr->ia_valid & ATTR_ATIME || iattr->ia_valid & ATTR_ATIME_SET)
+    {
+        chtime(index, iattr->ia_atime.tv_sec, 1, *KMCSFS);
+        inode->i_atime_sec = iattr->ia_atime.tv_sec;
+    }
+
+    if (iattr->ia_valid & ATTR_MTIME || iattr->ia_valid & ATTR_MTIME_SET)
+    {
+        chtime(index, iattr->ia_mtime.tv_sec, 3, *KMCSFS);
+        inode->i_mtime_sec = iattr->ia_mtime.tv_sec;
+    }
+
 	if (S_ISREG(inode->i_mode) && (iattr->ia_valid & ATTR_SIZE))
     {
         unsigned long long size = get_file_size(index, *KMCSFS);
