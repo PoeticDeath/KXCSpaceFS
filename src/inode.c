@@ -202,6 +202,12 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
         return ERR_PTR(inode);
     }
 
+    down_write(KMCSFS->op_lock);
+    unsigned long long time = current_time(dir).tv_sec;
+    chtime(get_filename_index(*pfn, KMCSFS), time, 1, *KMCSFS);
+    dir->i_atime_sec = time;
+    up_write(KMCSFS->op_lock);
+
     /* Fill the dentry with the inode */
     d_add(dentry, inode);
 
@@ -255,6 +261,15 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     {
         return inode;
     }
+
+    down_write(KMCSFS->op_lock);
+    unsigned long long time = current_time(dir).tv_sec;
+    unsigned long long dir_index = get_filename_index(*pfn, KMCSFS);
+    chtime(dir_index, time, 1, *KMCSFS);
+    chtime(dir_index, time, 3, *KMCSFS);
+    dir->i_atime_sec = time;
+    dir->i_mtime_sec = time;
+    up_write(KMCSFS->op_lock);
 
     return inode;
 }
@@ -312,6 +327,13 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
 
     down_write(KMCSFS->op_lock);
     int ret = delete_file(sb->s_bdev, KMCSFS, fn, get_filename_index(fn, KMCSFS));
+
+    unsigned long long time = current_time(dir).tv_sec;
+    unsigned long long dir_index = get_filename_index(*pfn, KMCSFS);
+    chtime(dir_index, time, 1, *KMCSFS);
+    chtime(dir_index, time, 3, *KMCSFS);
+    dir->i_atime_sec = time;
+    dir->i_mtime_sec = time;
     up_write(KMCSFS->op_lock);
 
     return ret;
@@ -346,6 +368,8 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     oldfn = old_dentry->d_inode->i_private;
 
     /* Calculate new filename */
+    UNICODE_STRING* olddir;
+    olddir = old_dir->i_private;
     UNICODE_STRING* newdir;
     newdir = new_dir->i_private;
     UNICODE_STRING nfn;
@@ -387,7 +411,6 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
 
     down_write(KMCSFS->op_lock);
     ret = rename_file(sb->s_bdev, KMCSFS, *oldfn, nfn);
-    up_write(KMCSFS->op_lock);
     if (!IS_ERR(ret))
     {
         unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, nfn.Buffer, nfn.Length);
@@ -395,10 +418,24 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
         kfree(oldfn->Buffer);
         oldfn->Length = nfn.Length;
         oldfn->Buffer = nfn.Buffer;
+
+        unsigned long long time = current_time(old_dir).tv_sec;
+        unsigned long long old_dir_index = get_filename_index(*olddir, KMCSFS);
+        unsigned long long new_dir_index = get_filename_index(*newdir, KMCSFS);
+        chtime(old_dir_index, time, 1, *KMCSFS);
+        chtime(old_dir_index, time, 3, *KMCSFS);
+        old_dir->i_atime_sec = time;
+        old_dir->i_mtime_sec = time;
+        chtime(new_dir_index, time, 1, *KMCSFS);
+        chtime(new_dir_index, time, 3, *KMCSFS);
+        new_dir->i_atime_sec = time;
+        new_dir->i_mtime_sec = time;
+        up_write(KMCSFS->op_lock);
     }
     else
     {
         kfree(nfn.Buffer);
+        up_write(KMCSFS->op_lock);
     }
     return ret;
 }

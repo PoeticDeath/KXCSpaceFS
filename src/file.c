@@ -99,7 +99,6 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
     }
 
     bytes_write = write_file(sb->s_bdev, *KMCSFS, buf, pos, len, index, inode->i_size, &bytes_to_write, false);
-    up_write(KMCSFS->op_lock);
     if (!bytes_write)
     {
         /* successfully wrote data */
@@ -108,6 +107,11 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
         pos += bytes_to_write;
     }
     *ppos = pos;
+
+    unsigned long long time = current_time(inode).tv_sec;
+    chtime(index, time, 3, *KMCSFS);
+    inode->i_mtime_sec = time;
+    up_write(KMCSFS->op_lock);
 
     return bytes_write;
 }
