@@ -1,6 +1,8 @@
 obj-m += kxcspacefs.o
 kxcspacefs-objs := fs.o super.o inode.o file.o dir.o Sha3.o Dict.o CSpaceFS.o
 
+EXTRA_CFLAGS := -O3 -msoft-float -msse -msse2 -msse3 -msse4
+
 KDIR ?= /lib/modules/$(shell uname -r)/build
 
 MKFS = build/mkfs.kxcspacefs

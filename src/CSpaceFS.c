@@ -238,13 +238,20 @@ unsigned long long chtime(unsigned long long filenameindex, unsigned long long t
 			ti[i] = tim[7 - i];
 		}
 		unsigned long long rtime = 0;
-		memmove(&rtime, ti, 8);
+		kernel_fpu_begin();
+		double t = 0;
+		memmove(&t, ti, 8);
+		rtime = t;
+		kernel_fpu_end();
 		return rtime;
 	}
 	else
 	{
+		kernel_fpu_begin();
+		double t = time;
 		char ti[8] = {0};
-		memmove(ti, &time, 8);
+		memmove(ti, &t, 8);
+		kernel_fpu_end();
 		char tim[8] = {0};
 		for (unsigned i = 0; i < 8; i++)
 		{
