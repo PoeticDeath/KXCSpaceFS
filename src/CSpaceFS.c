@@ -325,7 +325,7 @@ unsigned long chwinattrs(unsigned long long filenameindex, unsigned long winattr
 	}
 }
 
-static unsigned toint(unsigned char c)
+unsigned toint(unsigned char c)
 {
 	switch (c)
 	{

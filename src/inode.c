@@ -4,6 +4,7 @@
 #include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/fiemap.h>
 
 #include "super.h"
 #include "Dict.h"
@@ -516,6 +517,142 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
 	return ret;
 }
 
+static int kxcspacefs_fiemap(struct inode* inode, struct fiemap_extent_info* fieinfo, unsigned long long start, unsigned long long len)
+{
+    struct super_block* sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* fn = inode->i_private;
+    int ret = fiemap_prep(inode, fieinfo, start, &len, 0);
+    if (IS_ERR(ret))
+    {
+        return ret;
+    }
+
+    down_read(KMCSFS->op_lock);
+    unsigned long long index = get_filename_index(*fn, KMCSFS);
+    unsigned long long maxsize = get_file_size(index, *KMCSFS);
+    maxsize -= maxsize % KMCSFS->sectorsize;
+    unsigned long long loc = 0;
+	if (index)
+	{
+		for (unsigned long long i = 0; i < KMCSFS->tablestrlen; i++)
+		{
+			if (KMCSFS->tablestr[i] == *".")
+			{
+				loc++;
+				if (loc == index)
+				{
+					loc = i + 1;
+					break;
+				}
+			}
+		}
+	}
+
+	bool notzero = false;
+	bool multisector = false;
+	unsigned cur = 0;
+	unsigned long long int0 = 0;
+	unsigned long long int1 = 0;
+	unsigned long long int2 = 0;
+	unsigned long long int3 = 0;
+	unsigned long long filesize = 0;
+
+	for (unsigned long long i = loc; i < KMCSFS->tablestrlen; i++)
+	{
+		if (KMCSFS->tablestr[i] == *"," || KMCSFS->tablestr[i] == *".")
+		{
+			if (notzero)
+			{
+				if (multisector)
+				{
+					for (unsigned long long o = 0; o < int0 - int3; o++)
+					{
+                        filesize += KMCSFS->sectorsize;
+                        if (filesize > start)
+                        {
+                            ret = fiemap_fill_next_extent(fieinfo, filesize - KMCSFS->sectorsize, KMCSFS->size - KMCSFS->sectorsize - (int3 + o) * KMCSFS->sectorsize, KMCSFS->sectorsize, maxsize > filesize ? 0 : FIEMAP_EXTENT_LAST);
+                        }
+					}
+				}
+				switch (cur)
+				{
+				case 0:
+                    filesize += KMCSFS->sectorsize;
+                    if (filesize > start)
+                    {
+                        ret = fiemap_fill_next_extent(fieinfo, filesize - KMCSFS->sectorsize, KMCSFS->size - KMCSFS->sectorsize - int0 * KMCSFS->sectorsize, KMCSFS->sectorsize, maxsize > filesize ? 0 : FIEMAP_EXTENT_LAST);
+                    }
+                    break;
+				case 1:
+					break;
+				case 2:
+					filesize += int2 - int1;
+					break;
+				}
+                if (IS_ERR(ret))
+                {
+                    break;
+                }
+			}
+			cur = 0;
+			int0 = 0;
+			int1 = 0;
+			int2 = 0;
+			int3 = 0;
+			multisector = false;
+			if (KMCSFS->tablestr[i] == *".")
+			{
+				break;
+			}
+		}
+		else if (KMCSFS->tablestr[i] == *";")
+		{
+			cur++;
+		}
+		else if (KMCSFS->tablestr[i] == *"-")
+		{
+			int3 = int0;
+			multisector = true;
+			cur = 0;
+			int0 = 0;
+			int1 = 0;
+			int2 = 0;
+		}
+		else
+		{
+			notzero = true;
+			switch (cur)
+			{
+			case 0:
+				int0 += toint(KMCSFS->tablestr[i] & 0xff);
+				if (KMCSFS->tablestr[i + 1] != *";" && KMCSFS->tablestr[i + 1] != *"," && KMCSFS->tablestr[i + 1] != *"." && KMCSFS->tablestr[i + 1] != *"-")
+				{
+					int0 *= 10;
+				}
+				break;
+			case 1:
+				int1 += toint(KMCSFS->tablestr[i] & 0xff);
+				if (KMCSFS->tablestr[i + 1] != *";" && KMCSFS->tablestr[i + 1] != *"," && KMCSFS->tablestr[i + 1] != *"." && KMCSFS->tablestr[i + 1] != *"-")
+				{
+					int1 *= 10;
+				}
+				break;
+			case 2:
+				int2 += toint(KMCSFS->tablestr[i] & 0xff);
+				if (KMCSFS->tablestr[i + 1] != *";" && KMCSFS->tablestr[i + 1] != *"," && KMCSFS->tablestr[i + 1] != *"." && KMCSFS->tablestr[i + 1] != *"-")
+				{
+					int2 *= 10;
+				}
+				break;
+			}
+		}
+	}
+    up_read(KMCSFS->op_lock);
+
+    return ret;
+}
+
 static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, umode_t mode, dev_t dev)
 {
     struct super_block* sb = dir->i_sb;
@@ -637,6 +774,7 @@ static const struct inode_operations kxcspacefs_inode_ops =
     .rmdir = kxcspacefs_rmdir,
     .rename = kxcspacefs_rename,
     .setattr = kxcspacefs_setattr,
+    .fiemap = kxcspacefs_fiemap,
     .mknod = kxcspacefs_mknod,
     .symlink = kxcspacefs_symlink,
 };
