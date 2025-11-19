@@ -946,7 +946,7 @@ static bool is_table_expandable(KMCSpaceFS KMCSFS, unsigned long long newsize)
 	return KMCSFS.size / KMCSFS.sectorsize - nearestsector > sector_align(newsize, KMCSFS.sectorsize) / KMCSFS.sectorsize;
 }
 
-int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn, unsigned long gid, unsigned long uid, unsigned long mode)
+int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn, unsigned long gid, unsigned long uid, unsigned long mode, unsigned long long time)
 {
 	if ((fn.Buffer[fn.Length / sizeof(WCHAR) - 1] & 0xff) == 0)
 	{
@@ -1050,7 +1050,6 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	KMCSFS->filenamesend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR);
 	KMCSFS->tableend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2;
 
-	ktime_t time = ktime_get();
 	chtime(KMCSFS->filecount, time, 5, *KMCSFS);
 	chtime(KMCSFS->filecount, time, 1, *KMCSFS);
 	chtime(KMCSFS->filecount, time, 3, *KMCSFS);

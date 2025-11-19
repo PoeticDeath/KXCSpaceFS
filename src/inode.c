@@ -238,7 +238,7 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
     down_write(KMCSFS->op_lock);
-    int ret = create_file(sb->s_bdev, KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode);
+    int ret = create_file(sb->s_bdev, KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode, current_time(dir).tv_sec);
     up_write(KMCSFS->op_lock);
 
     if (IS_ERR(ret))
