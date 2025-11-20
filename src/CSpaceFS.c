@@ -262,9 +262,9 @@ unsigned long long chtime(unsigned long long filenameindex, unsigned long long t
 	}
 }
 
-unsigned long chgid(unsigned long long filenameindex, unsigned long gid, KMCSpaceFS KMCSFS)
+unsigned long chgid(unsigned long long filenameindex, unsigned long gid, KMCSpaceFS KMCSFS, bool write)
 { // First three bytes after times
-	if (!gid)
+	if (!write)
 	{
 		gid = (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11] & 0xff) << 16 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 1] & 0xff) << 8 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 2] & 0xff);
 		return gid;
@@ -278,9 +278,9 @@ unsigned long chgid(unsigned long long filenameindex, unsigned long gid, KMCSpac
 	}
 }
 
-unsigned long chuid(unsigned long long filenameindex, unsigned long uid, KMCSpaceFS KMCSFS)
+unsigned long chuid(unsigned long long filenameindex, unsigned long uid, KMCSpaceFS KMCSFS, bool write)
 { // Next two bytes
-	if (!uid)
+	if (!write)
 	{
 		uid = (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 3] & 0xff) << 8 | (KMCSFS.table[KMCSFS.filenamesend + 2 + KMCSFS.filecount * 24 + filenameindex * 11 + 4] & 0xff);
 		return uid;

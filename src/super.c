@@ -336,8 +336,8 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
     }
 
 	unsigned long long index = get_filename_index(root_fn, KMCSFS);
-	root_inode->i_gid.val = chgid(index, 0, *KMCSFS);
-	root_inode->i_uid.val = chuid(index, 0, *KMCSFS);
+	root_inode->i_gid.val = chgid(index, 0, *KMCSFS, false);
+	root_inode->i_uid.val = chuid(index, 0, *KMCSFS, false);
 	root_inode->i_mode = chmode(index, 0, *KMCSFS);
 
     return 0;

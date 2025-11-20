@@ -98,8 +98,8 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     inode->i_op = &kxcspacefs_inode_ops;
 
     inode->i_mode = chmode(index, 0, *KMCSFS);
-    i_uid_write(inode, chuid(index, 0, *KMCSFS));
-    i_gid_write(inode, chgid(index, 0, *KMCSFS));
+    i_uid_write(inode, chuid(index, 0, *KMCSFS, false));
+    i_gid_write(inode, chgid(index, 0, *KMCSFS, false));
     inode->i_size = get_file_size(index, *KMCSFS);
 
 #if KXCSPACEFS_AT_LEAST(6, 6, 0)
@@ -465,13 +465,13 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
 
     if (iattr->ia_valid & ATTR_UID)
     {
-        chuid(index, iattr->ia_uid.val, *KMCSFS);
+        chuid(index, iattr->ia_uid.val, *KMCSFS, true);
         inode->i_uid.val = iattr->ia_uid.val;
     }
 
     if (iattr->ia_valid & ATTR_GID)
     {
-        chgid(index, iattr->ia_gid.val, *KMCSFS);
+        chgid(index, iattr->ia_gid.val, *KMCSFS, true);
         inode->i_gid.val = iattr->ia_gid.val;
     }
 
