@@ -55,7 +55,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     inode = iget_locked(sb, index);
     if (!inode)
     {
-        return -ENOMEM;
+        return ERR_PTR(-ENOMEM);
     }
 
     /* If inode is in cache, clean it */
@@ -162,7 +162,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
 
 failed:
     iget_failed(inode);
-    return ret;
+    return ERR_PTR(ret);
 }
 
 /* Search for a dentry in dir.
@@ -180,7 +180,7 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     /* Check filename length */
     if (dentry->d_name.len > KXCSPACEFS_FILENAME_LEN)
     {
-        return -ENAMETOOLONG;
+        return ERR_PTR(-ENAMETOOLONG);
     }
 
     /* Search for the file in directory */
@@ -190,7 +190,7 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
     if (!fn.Buffer)
     {
-        return -ENOMEM;
+        return ERR_PTR(-ENOMEM);
     }
     memmove(fn.Buffer, pfn->Buffer, pfn->Length);
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
@@ -200,7 +200,7 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     up_read(KMCSFS->op_lock);
     if (IS_ERR(inode))
     {
-        return ERR_PTR(inode);
+        return (void*)inode;
     }
 
     down_write(KMCSFS->op_lock);
@@ -238,7 +238,7 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
     if (!fn.Buffer)
     {
-        return -ENOMEM;
+        return ERR_PTR(-ENOMEM);
     }
     memmove(fn.Buffer, pfn->Buffer, pfn->Length);
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
@@ -248,10 +248,10 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     int ret = create_file(sb->s_bdev, KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode, current_time(dir).tv_sec);
     up_write(KMCSFS->op_lock);
 
-    if (IS_ERR(ret))
+    if (IS_ERR(ERR_PTR(ret)))
     {
         kfree(fn.Buffer);
-        return ret;
+        return ERR_PTR(ret);
     }
 
     down_read(KMCSFS->op_lock);
@@ -299,7 +299,7 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     inode = kxcspacefs_new_inode(dir, dentry, mode);
     if (IS_ERR(inode))
     {
-        return inode;
+        return PTR_ERR(inode);
     }
 
     /* setup dentry */
@@ -387,7 +387,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
 
     /* Fail if new_dentry exists */
     down_read(KMCSFS->op_lock);
-    ret = kxcspacefs_iget(sb, 0, &nfn);
+    ret = PTR_ERR(kxcspacefs_iget(sb, 0, &nfn));
     up_read(KMCSFS->op_lock);
     if (ret)
     {
@@ -402,7 +402,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
             ret = delete_file(sb->s_bdev, KMCSFS, nfn, get_filename_index(nfn, KMCSFS));
             up_write(KMCSFS->op_lock);
 
-            if (IS_ERR(ret))
+            if (IS_ERR(ERR_PTR(ret)))
             {
                 kfree(nfn.Buffer);
                 return ret;
@@ -412,7 +412,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
 
     down_write(KMCSFS->op_lock);
     ret = rename_file(sb->s_bdev, KMCSFS, *oldfn, nfn);
-    if (!IS_ERR(ret))
+    if (!IS_ERR(ERR_PTR(ret)))
     {
         unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, nfn.Buffer, nfn.Length);
         KMCSFS->dict[dindex].inode = old_dentry->d_inode;
@@ -523,7 +523,7 @@ static int kxcspacefs_fiemap(struct inode* inode, struct fiemap_extent_info* fie
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     UNICODE_STRING* fn = inode->i_private;
     int ret = fiemap_prep(inode, fieinfo, start, &len, 0);
-    if (IS_ERR(ret))
+    if (IS_ERR(ERR_PTR(ret)))
     {
         return ret;
     }
@@ -590,7 +590,7 @@ static int kxcspacefs_fiemap(struct inode* inode, struct fiemap_extent_info* fie
 					filesize += int2 - int1;
 					break;
 				}
-                if (IS_ERR(ret))
+                if (IS_ERR(ERR_PTR(ret)))
                 {
                     break;
                 }
@@ -658,7 +658,7 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
     struct super_block* sb = dir->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     int ret = kxcspacefs_create(id, dir, dentry, mode, 0);
-    if (IS_ERR(ret))
+    if (IS_ERR(ERR_PTR(ret)))
     {
         return ret;
     }
@@ -666,12 +666,11 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
     struct file file;
     file.f_inode = dentry->d_inode;
 
-    loff_t pos = 0;
     UNICODE_STRING* fn = dentry->d_inode->i_private;
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
     ret = find_block(sb->s_bdev, KMCSFS, index, sizeof(dev_t));
-    if (!IS_ERR(ret))
+    if (!IS_ERR(ERR_PTR(ret)))
     {
         dentry->d_inode->i_size = sizeof(dev_t);
         unsigned long long bytes_written = 0;
@@ -684,7 +683,17 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
     return ret;
 }
 
-#if KXCSPACEFS_AT_LEAST(6, 3, 0)
+#if KXCSPACEFS_AT_LEAST(6, 17, 0)
+static struct dentry* kxcspacefs_mkdir(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, umode_t mode)
+{
+    int ret = kxcspacefs_create(id, dir, dentry, mode | S_IFDIR, 0);
+    if (IS_ERR(ERR_PTR(ret)))
+    {
+        return ERR_PTR(ret);
+    }
+    return dentry;
+}
+#elif KXCSPACEFS_AT_LEAST(6, 3, 0)
 static int kxcspacefs_mkdir(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, umode_t mode)
 {
     return kxcspacefs_create(id, dir, dentry, mode | S_IFDIR, 0);
@@ -707,7 +716,7 @@ static int kxcspacefs_rmdir(struct inode* dir, struct dentry* dentry)
 
     /* If the directory is not empty, fail */
     int ret = kxcspacefs_iterate((void*)dentry->d_inode, NULL);
-    if (IS_ERR(ret))
+    if (IS_ERR(ERR_PTR(ret)))
     {
         return ret;
     }
@@ -730,7 +739,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     struct inode* inode = kxcspacefs_new_inode(dir, dentry, S_IFLNK | S_IRWXUGO);
     if (IS_ERR(inode))
     {
-        return inode;
+        return PTR_ERR(inode);
     }
 
     struct file file;
@@ -750,16 +759,16 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     uint8_t* data = kzalloc(inode->i_size, GFP_KERNEL);
     if (!data)
     {
-        return -ENOMEM;
+        return ERR_PTR(-ENOMEM);
     }
 
     unsigned long long bytes_read = 0;
     down_read(KMCSFS->op_lock);
     int ret = read_file(sb->s_bdev, *KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read, false);
     up_read(KMCSFS->op_lock);
-    if (IS_ERR(ret))
+    if (IS_ERR(ERR_PTR(ret)))
     {
-        return ret;
+        return ERR_PTR(ret);
     }
 
     return data;

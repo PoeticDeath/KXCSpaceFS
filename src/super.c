@@ -309,7 +309,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 		kfree(KMCSFS->writebuf);
         kfree(KMCSFS->readbuflock);
         kfree(KMCSFS->op_lock);
-        ret = root_inode;
+        ret = PTR_ERR(root_inode);
         goto free_kmcsfs_table;
     }
 
