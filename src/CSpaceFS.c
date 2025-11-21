@@ -38,8 +38,8 @@ static long long lltodouble(long long rll)
 	frac <<= 22;
 
 	unsigned long long ll = rll < 0 ? 0x8000000000000000 : 0;
-	ll |= oex << 52;
-	ll |= frac;
+	ll |= (oex << 52) & 0x7ff0000000000000;
+	ll |= frac & 0x000fffffffffffff;
 
 	return ll;
 }
