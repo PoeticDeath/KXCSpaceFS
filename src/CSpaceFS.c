@@ -7,6 +7,61 @@
 unsigned* emap = NULL;
 unsigned* dmap = NULL;
 
+static long long lltodouble(long long rll)
+{
+	unsigned long long ull = abs(rll);
+
+	if (!ull)
+	{
+		return 0;
+	}
+
+	unsigned long long mask = (unsigned long long)1 << 52;
+	unsigned long long i = 0;
+	for (; i < 52; i++)
+	{
+		if (ull & mask)
+		{
+			break;
+		}
+		else
+		{
+			mask >>= 1;
+		}
+	}
+
+	unsigned long long oex = 52 - i + 1023;
+	unsigned long long ex = mask;
+	mask = (unsigned long long)1 << 52;
+	unsigned long long frac = ull;
+	frac &= ~ex;
+	frac <<= 22;
+
+	unsigned long long ll = rll < 0 ? 0x8000000000000000 : 0;
+	ll |= oex << 52;
+	ll |= frac;
+
+	return ll;
+}
+
+static long long doubletoll(long long rll)
+{
+	bool sign = (rll & 0x8000000000000000) >> 63;
+	unsigned long long oex = (rll & 0x7ff0000000000000) >> 52;
+	unsigned long long frac = rll & 0x000fffffffffffff;
+
+	if (!oex && !frac)
+	{
+		return 0;
+	}
+
+	oex -= 1023;
+	unsigned long long ex = 1 << oex;
+	frac >>= 22;
+
+	return (1 - 2 * sign) * (ex + frac);
+}
+
 static unsigned long long sector_align(unsigned long long n, unsigned long long a)
 {
 	if (n & (a - 1))
@@ -237,21 +292,16 @@ unsigned long long chtime(unsigned long long filenameindex, unsigned long long t
 		{
 			ti[i] = tim[7 - i];
 		}
-		unsigned long long rtime = 0;
-		kernel_fpu_begin();
-		double t = 0;
+		long long t = 0;
 		memmove(&t, ti, 8);
-		rtime = t;
-		kernel_fpu_end();
+		unsigned long long rtime = doubletoll(t);
 		return rtime;
 	}
 	else
 	{
-		kernel_fpu_begin();
-		double t = time;
+		unsigned long long t = lltodouble(time);
 		char ti[8] = {0};
 		memmove(ti, &t, 8);
-		kernel_fpu_end();
 		char tim[8] = {0};
 		for (unsigned i = 0; i < 8; i++)
 		{
