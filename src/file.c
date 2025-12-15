@@ -168,7 +168,7 @@ static int kxcspacefs_write_begin(const struct kiocb* kiocb, struct address_spac
 
 static sector_t kxcspacefs_bmap(struct address_space* mapping, sector_t block)
 {
-	return generic_block_bmap(mapping,block, kxcspacefs_getfrag_block);
+	return generic_block_bmap(mapping, block, kxcspacefs_getfrag_block);
 }
 
 /*
