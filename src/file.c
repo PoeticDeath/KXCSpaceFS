@@ -147,7 +147,7 @@ static int kxcspacefs_getfrag_block(struct inode* inode, sector_t fragment, stru
 
     if (phys)
     {
-        bh_result = __bread(sb->s_bdev, phys / 512 + fragment % KMCSFS->sectorsize / 512, 512);
+        map_bh(bh_result, sb, phys / 512 + fragment % KMCSFS->sectorsize / 512);
     }
     return 0;
 }
