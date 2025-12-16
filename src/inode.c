@@ -119,7 +119,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     inode->i_mtime.tv_nsec = 0;
 #endif
 
-    inode->i_blocks = inode->i_size / KMCSFS->sectorsize;
+    inode->i_blocks = inode->i_size / 512;
     set_nlink(inode, 1);
 
     if (S_ISDIR(inode->i_mode))
