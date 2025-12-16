@@ -71,43 +71,92 @@ static unsigned long long sector_align(unsigned long long n, unsigned long long 
 	return n;
 }
 
+static unsigned long long calc_order(unsigned long long size)
+{
+	unsigned long long order = 0;
+	while ((1 << order) * PAGE_SIZE < size)
+	{
+		order++;
+	}
+	return order;
+}
+
+static void rwcomplete(struct bio* bio)
+{
+	complete(bio->bi_private);
+	bio_put(bio);
+}
+
+static void readpage(struct block_device* device, sector_t sector, int size, struct page* page)
+{
+    struct completion event;
+    struct bio* bio = bio_alloc(device, 1, REQ_OP_READ, GFP_NOIO);
+
+    bio->bi_iter.bi_sector = sector;
+
+    bio_add_page(bio, page, size, 0);
+    init_completion(&event);
+
+    bio->bi_private = &event;
+    bio->bi_end_io = rwcomplete;
+
+    submit_bio(bio);
+    wait_for_completion(&event);
+}
+
 void sync_read_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev)
 {
 	pagefault_disable();
-	for (unsigned long long i = 0; i < length; i += 512)
+	unsigned long long order = calc_order(max(length, 512));
+	struct page* page = alloc_pages(GFP_KERNEL, order);
+	char* data = page_address(page);
+	if (data)
 	{
-		struct buffer_head* data = __bread(bdev, offset / 512 + i / 512, 512);
-		if (data)
-		{
-			memmove(buf + i, data->b_data, 512);
-			brelse(data);
-		}
+		readpage(bdev, offset / 512, max(length, 512), page);
+		memmove(buf, data, length);
+		__free_pages(page, order);
 	}
 	pagefault_enable();
+}
+
+static void writepage(struct block_device* device, sector_t sector, int size, struct page* page)
+{
+    struct completion event;
+    struct bio* bio = bio_alloc(device, 1, REQ_OP_WRITE, GFP_NOIO);
+
+    bio->bi_iter.bi_sector = sector;
+
+    bio_add_page(bio, page, size, 0);
+    init_completion(&event);
+
+    bio->bi_private = &event;
+    bio->bi_end_io = rwcomplete;
+
+    submit_bio(bio);
+    wait_for_completion(&event);
 }
 
 void sync_write_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev, bool kern)
 {
 	pagefault_disable();
-	for (unsigned long long i = 0; i < length;)
+	unsigned long long order = calc_order(sector_align(offset % 512 + length, 512));
+	struct page* page = alloc_pages(GFP_KERNEL, order);
+	char* data = page_address(page);
+	if (data)
 	{
-		struct buffer_head* data = __bread(bdev, offset / 512 + i / 512, 512);
-		if (data)
+		readpage(bdev, offset / 512 + length / 512, 512, page);
+		memmove(data + sector_align(offset % 512 + length, 512) - 512, data, 512);
+		readpage(bdev, offset / 512, 512, page);
+		if (kern)
 		{
-			if (kern)
-			{
-				memmove(data->b_data + offset % 512, buf + i, min(512 - offset % 512, length - i));
-			}
-			else
-			{
-				copy_from_user(data->b_data + offset % 512, buf + i, min(512 - offset % 512, length - i));
-			}
-			mark_buffer_dirty(data);
-			sync_dirty_buffer(data);
-			brelse(data);
+			memmove(data + offset % 512, buf, length);
 		}
-		i += min(512 - offset % 512, length - i);
-		offset += (512 - offset % 512) % 512;
+		else
+		{
+			copy_from_user(data + offset % 512, buf, length);
+		}
+		writepage(bdev, offset / 512, sector_align(offset % 512 + length, 512), page);
+		__free_pages(page, order);
 	}
 	pagefault_enable();
 }
