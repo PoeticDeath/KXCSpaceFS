@@ -5,6 +5,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mpage.h>
+#include <linux/writeback.h>
 
 #include "super.h"
 
@@ -146,14 +147,19 @@ static int kxcspacefs_getfrag_block(struct inode* inode, sector_t fragment, stru
 
     if (phys)
     {
-        map_bh(bh_result, sb, phys / 512 + fragment % KMCSFS->sectorsize / 512);
+        bh_result = __bread(sb->s_bdev, phys / 512 + fragment % KMCSFS->sectorsize / 512, 512);
     }
     return 0;
 }
 
 static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
 {
-	return block_read_full_folio(folio, kxcspacefs_getfrag_block);
+	return mpage_read_folio(folio, kxcspacefs_getfrag_block);
+}
+
+static void kxcspacefs_readahead(struct readahead_control* rac)
+{
+    mpage_readahead(rac, kxcspacefs_getfrag_block);
 }
 
 static int kxcspacefs_writepages(struct address_space* mapping, struct writeback_control* wbc)
@@ -278,13 +284,15 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
 
 const struct address_space_operations kxcspacefs_aops =
 {
-    .dirty_folio = block_dirty_folio,
 	.invalidate_folio = block_invalidate_folio,
 	.read_folio = kxcspacefs_read_folio,
+    .readahead = kxcspacefs_readahead,
 	.writepages = kxcspacefs_writepages,
 	.write_begin = kxcspacefs_write_begin,
 	.write_end = generic_write_end,
 	.migrate_folio = buffer_migrate_folio,
+    .dirty_folio = filemap_dirty_folio,
+    .error_remove_folio = generic_error_remove_folio,
     .bmap = kxcspacefs_bmap,
 };
 
