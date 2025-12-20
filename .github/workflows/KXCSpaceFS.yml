@@ -24,3 +24,13 @@ jobs:
       run: mkdir build
     - name: Make
       run: make all -f src/Makefile
+    - name: Upload mkfs.KXCSpaceFS
+      uses: actions/upload-artifact@v4
+      with:
+        name: mkfs.KXCSpaceFS
+        path: /home/runner/work/KXCSpaceFS/KXCSpaceFS/build/mkfs.kxcspacefs
+    - name: Upload KXCSpaceFS.ko
+      uses: actions/upload-artifact@v4
+      with:
+        name: KXCSpaceFS.ko
+        path: /home/runner/work/KXCSpaceFS/KXCSpaceFS/build/kxcspacefs.ko
