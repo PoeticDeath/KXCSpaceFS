@@ -21,4 +21,4 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential
     - name: Make
-      run: make all
+      run: make all -f src/Makefile
