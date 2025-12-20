@@ -30,7 +30,7 @@ jobs:
         sudo rm build
         sudo ln -s /usr/src/linux-6* build
         cd build
-        sudo make oldconfig && sudo make prepare && sudo make modules
+        sudo make -j$(nproc)
     - name: Setup
       run: mkdir build
     - name: Make
