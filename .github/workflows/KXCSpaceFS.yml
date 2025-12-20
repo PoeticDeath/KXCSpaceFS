@@ -19,6 +19,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
+        sudo apt-get upgrade -y
         sudo apt-get install -y build-essential
     - name: Setup
       run: mkdir build
@@ -34,5 +35,3 @@ jobs:
       with:
         name: KXCSpaceFS.ko
         path: /home/runner/work/KXCSpaceFS/KXCSpaceFS/build/kxcspacefs.ko
-    - name: List Make Dir (TEMP)
-      run: ls build
