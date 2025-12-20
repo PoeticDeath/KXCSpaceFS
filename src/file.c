@@ -167,10 +167,22 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
 	return mpage_writepages(mapping, wbc, kxcspacefs_getfrag_block);
 }
 
+#if KXCSPACEFS_AT_LEAST(6, 17, 0)
 static int kxcspacefs_write_begin(const struct kiocb* kiocb, struct address_space* mapping, loff_t pos, unsigned len, struct folio** foliop, void** fsdata)
 {
 	return block_write_begin(mapping, pos, len, foliop, kxcspacefs_getfrag_block);
 }
+#elif KXCSPACEFS_AT_LEAST(6, 12, 0)
+static int kxcspacefs_write_begin(const struct file* file, struct address_space* mapping, loff_t pos, unsigned len, struct folio** foliop, void** fsdata)
+{
+	return block_write_begin(mapping, pos, len, foliop, kxcspacefs_getfrag_block);
+}
+#else
+static int kxcspacefs_write_begin(const struct file* file, struct address_space* mapping, loff_t pos, unsigned len, struct page** pagep, void** fsdata)
+{
+	return block_write_begin(mapping, pos, len, pagep, kxcspacefs_getfrag_block);
+}
+#endif
 
 static sector_t kxcspacefs_bmap(struct address_space* mapping, sector_t block)
 {
@@ -301,7 +313,9 @@ const struct file_operations kxcspacefs_file_ops =
     .owner = THIS_MODULE,
     .read_iter = generic_file_read_iter,
     .write_iter = generic_file_write_iter,
+#if KXCSPACEFS_AT_LEAST(6, 17, 0)
     .mmap_prepare = generic_file_mmap_prepare,
+#endif
     .open = kxcspacefs_open,
     .read = kxcspacefs_read,
     .write = kxcspacefs_write,
