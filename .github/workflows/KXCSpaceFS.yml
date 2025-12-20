@@ -26,11 +26,11 @@ jobs:
         sudo wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.2.tar.xz
         sudo tar xvf linux-*.tar.xz
         sudo rm linux-*.tar.xz
-        cd linux-6*
-        sudo make oldconfig && sudo make prepare
         cd /lib/modules/$(uname -r)
         sudo rm build
         sudo ln -s /usr/src/linux-6* build
+        cd build
+        sudo make oldconfig && sudo make prepare
     - name: Setup
       run: mkdir build
     - name: Make
