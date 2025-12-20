@@ -34,3 +34,5 @@ jobs:
       with:
         name: KXCSpaceFS.ko
         path: /home/runner/work/KXCSpaceFS/KXCSpaceFS/build/kxcspacefs.ko
+    - name: List Make Dir (TEMP)
+      run: ls build
