@@ -29,6 +29,8 @@ jobs:
         cd /lib/modules/$(uname -r)
         sudo rm build
         sudo ln -s /usr/src/linux-6* build
+        cd build
+        sudo make oldconfig && make prepare
     - name: Setup
       run: mkdir build
     - name: Make
