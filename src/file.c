@@ -173,12 +173,12 @@ static int kxcspacefs_write_begin(const struct kiocb* kiocb, struct address_spac
 	return block_write_begin(mapping, pos, len, foliop, kxcspacefs_getfrag_block);
 }
 #elif KXCSPACEFS_AT_LEAST(6, 12, 0)
-static int kxcspacefs_write_begin(const struct file* file, struct address_space* mapping, loff_t pos, unsigned len, struct folio** foliop, void** fsdata)
+static int kxcspacefs_write_begin(struct file* file, struct address_space* mapping, loff_t pos, unsigned len, struct folio** foliop, void** fsdata)
 {
 	return block_write_begin(mapping, pos, len, foliop, kxcspacefs_getfrag_block);
 }
 #else
-static int kxcspacefs_write_begin(const struct file* file, struct address_space* mapping, loff_t pos, unsigned len, struct page** pagep, void** fsdata)
+static int kxcspacefs_write_begin(struct file* file, struct address_space* mapping, loff_t pos, unsigned len, struct page** pagep, void** fsdata)
 {
 	return block_write_begin(mapping, pos, len, pagep, kxcspacefs_getfrag_block);
 }
