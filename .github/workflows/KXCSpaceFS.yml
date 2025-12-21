@@ -52,4 +52,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: KXCSpaceFS.ko
-        path: /home/runner/work/KXCSpaceFS/KXCSpaceFS/src/kxcspacefs.ko
+        path: /home/runner/work/KXCSpaceFS/KXCSpaceFS/build/kxcspacefs.ko
