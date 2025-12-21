@@ -19,7 +19,20 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential
+        sudo apt-get install -y build-essential libncurses-dev flex bison libssl-dev libelf-dev libdw-dev gawk
+    - name: Update Kernel Source
+      run: |
+        cd /usr/src
+        sudo wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.17.tar.xz
+        sudo tar xvf linux-*.tar.xz
+        sudo rm linux-*.tar.xz
+        cd /lib/modules/$(uname -r)
+        sudo ln -s /usr/src/linux-6* build
+        cd build
+        sudo make oldconfig
+        sudo ./scripts/config --disable SYSTEM_TRUSTED_KEYS
+        sudo ./scripts/config --disable SYSTEM_REVOCATION_KEYS
+        sudo make -j$(nproc)
     - name: Setup
       run: mkdir build
     - name: Make
