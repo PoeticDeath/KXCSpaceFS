@@ -20,7 +20,7 @@ jobs:
       run: |
         sudo add-apt-repository "deb http://archive.ubuntu.com/ubuntu/ questing-updates main universe restricted multiverse"
         sudo apt-get update
-        sudo apt-get install -y build-essential linux-image-6.17.0-8-generic linux-headers-6.17.0-8-generic
+        sudo apt-get install -y bear build-essential linux-image-6.17.0-8-generic linux-headers-6.17.0-8-generic
     - name: Node Cleanup (Carlos Alexandro Becker)
       run: |
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
