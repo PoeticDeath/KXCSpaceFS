@@ -20,6 +20,7 @@ jobs:
       run: |
         sudo add-apt-repository "deb http://archive.ubuntu.com/ubuntu/ questing-updates main universe restricted multiverse"
         sudo apt-get update
+        sudo apt upgrade gcc
         sudo apt-get install -y build-essential linux-image-6.17.0-8-generic linux-headers-6.17.0-8-generic
     - name: Update Kernel Source
       run: |
@@ -27,9 +28,7 @@ jobs:
         sudo rm build
         sudo ln -s /usr/src/linux-headers-6*-generic build
     - name: Setup
-      run: |
-        rm -rf .vscode
-        mkdir build
+      run: mkdir build
     - name: Make
       run: make all -f src/Makefile
     - name: Upload mkfs.KXCSpaceFS
