@@ -27,11 +27,9 @@ jobs:
         sudo docker builder prune -a
     - name: Update Kernel Source
       run: |
-        cd /usr/src
-        ls
         cd /lib/modules/$(uname -r)
         sudo rm build
-        sudo ln -s /usr/src/linux-6* build
+        sudo ln -s /usr/src/linux-6*-generic build
     - name: Setup
       run: mkdir build
     - name: Make
