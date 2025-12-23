@@ -18,7 +18,7 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install dependencies
       run: |
-        sudo add-apt-repository archive.ubuntu.com questing main universe restricted multiverse
+        sudo add-apt-repository "deb archive.ubuntu.com questing main universe restricted multiverse"
         sudo apt-get update
         sudo apt-get install -y build-essential linux-image-6.17.0-8-generic linux-headers-6.17.0-8-generic
     - name: Node Cleanup (Carlos Alexandro Becker)
