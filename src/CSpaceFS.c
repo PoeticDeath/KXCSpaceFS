@@ -582,20 +582,12 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 	}
 
 	bool locked = false;
-	uint8_t* buf = kzalloc(sector_align(length, KMCSFS.sectorsize), GFP_KERNEL);
+	uint8_t* buf = kzalloc(KMCSFS.sectorsize, GFP_KERNEL);
 	if (!buf)
 	{
-		if (sector_align(length, KMCSFS.sectorsize) <= KMCSFS.sectorsize)
-		{
-			locked = true;
-			down_write(KMCSFS.readbuflock);
-			buf = KMCSFS.readbuf;
-		}
-		else
-		{
-			pr_err("out of memory\n");
-			return -ENOMEM;
-		}
+		locked = true;
+		down_write(KMCSFS.readbuflock);
+		buf = KMCSFS.readbuf;
 	}
 
 	bool init = true;
