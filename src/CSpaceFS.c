@@ -1924,8 +1924,9 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 			kfree(KMCSFS->table);
 			KMCSFS->table = newtable;
 			sync_write_phys(0, extratablesize, newtable, bdev, true);
+			return true;
 		}
-		return true;
+		return false;
 	}
 	else
 	{
