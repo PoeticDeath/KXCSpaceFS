@@ -5,8 +5,8 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
+#include "linuxfs.h"
 #include "super.h"
-
 #include "Dict.h"
 #include "cspacefs.h"
 
@@ -56,7 +56,7 @@ int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
     UNICODE_STRING* fn = inode->i_private;
     UNICODE_STRING rfn;
     rfn.Length = 65536;
-    rfn.Buffer = kzalloc(rfn.Length, GFP_KERNEL);
+    rfn.Buffer = vmalloc(rfn.Length);
     if (!rfn.Buffer)
     {
         pr_err("out of memory\n");
@@ -144,7 +144,7 @@ int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
         }
     }
 
-    kfree(rfn.Buffer);
+    vfree(rfn.Buffer);
 	up_read(KMCSFS->op_lock);
     return ret;
 }

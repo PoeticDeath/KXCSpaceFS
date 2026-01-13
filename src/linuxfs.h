@@ -13,3 +13,4 @@
 #include <linux/jbd2.h>
 #include <linux/namei.h>
 #include <linux/parser.h>
+#include <linux/vmalloc.h>

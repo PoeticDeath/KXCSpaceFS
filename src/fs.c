@@ -4,6 +4,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
+#include "linuxfs.h"
 #include "Dict.h"
 #include "cspacefs.h"
 #include "super.h"
@@ -57,8 +58,8 @@ static int __init kxcspacefs_init(void)
 
 err_inode:
     /* Only after rcu_barrier() is the memory guaranteed to be freed. */
-    kfree(emap);
-    kfree(dmap);
+    vfree(emap);
+    vfree(dmap);
     rcu_barrier();
 err:
     return ret;
@@ -73,8 +74,8 @@ static void __exit kxcspacefs_exit(void)
     }
 
     /* Only after rcu_barrier() is the memory guaranteed to be freed. */
-    kfree(emap);
-    kfree(dmap);
+    vfree(emap);
+    vfree(dmap);
     rcu_barrier();
 
     pr_info("module unloaded\n");

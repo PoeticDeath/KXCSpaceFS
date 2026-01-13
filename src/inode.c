@@ -6,6 +6,7 @@
 #include <linux/module.h>
 #include <linux/fiemap.h>
 
+#include "linuxfs.h"
 #include "super.h"
 #include "Dict.h"
 #include "cspacefs.h"
@@ -64,8 +65,8 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         UNICODE_STRING* fn = inode->i_private;
         if (fn->Length > sizeof(WCHAR))
         {
-            kfree(fn->Buffer);
-            kfree(fn);
+            vfree(fn->Buffer);
+            vfree(fn);
         }
     }
 
@@ -73,7 +74,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     inode->i_private = NULL;
     if (fn)
     {
-        UNICODE_STRING* ofn = kzalloc(sizeof(UNICODE_STRING), GFP_KERNEL);
+        UNICODE_STRING* ofn = vmalloc(sizeof(UNICODE_STRING));
         if (!ofn)
         {
             pr_err("out of memory\n");
@@ -81,12 +82,12 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
             goto failed;
         }
         ofn->Length = fn->Length;
-        ofn->Buffer = kzalloc(ofn->Length, GFP_KERNEL);
+        ofn->Buffer = vmalloc(ofn->Length);
         if (!ofn->Buffer)
         {
             pr_err("out of memory\n");
             ret = -ENOMEM;
-            kfree(ofn);
+            vfree(ofn);
             goto failed;
         }
         memmove(ofn->Buffer, fn->Buffer, fn->Length);
@@ -187,7 +188,7 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     UNICODE_STRING* pfn = dir->i_private;
     UNICODE_STRING fn;
     fn.Length = pfn->Length + (pfn->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + dentry->d_name.len;
-    fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
+    fn.Buffer = vmalloc(fn.Length);
     if (!fn.Buffer)
     {
         return ERR_PTR(-ENOMEM);
@@ -235,7 +236,7 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     UNICODE_STRING fn;
 
     fn.Length = pfn->Length + (pfn->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + dentry->d_name.len;
-    fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
+    fn.Buffer = vmalloc(fn.Length);
     if (!fn.Buffer)
     {
         return ERR_PTR(-ENOMEM);
@@ -250,14 +251,14 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
 
     if (IS_ERR(ERR_PTR(ret)))
     {
-        kfree(fn.Buffer);
+        vfree(fn.Buffer);
         return ERR_PTR(ret);
     }
 
     down_read(KMCSFS->op_lock);
     inode = kxcspacefs_iget(sb, 0, &fn);
     up_read(KMCSFS->op_lock);
-    kfree(fn.Buffer);
+    vfree(fn.Buffer);
     if (IS_ERR(inode))
     {
         return inode;
@@ -317,7 +318,7 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     UNICODE_STRING fn;
 
     fn.Length = pfn->Length + (pfn->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + dentry->d_name.len;
-    fn.Buffer = kzalloc(fn.Length, GFP_KERNEL);
+    fn.Buffer = vmalloc(fn.Length);
     if (!fn.Buffer)
     {
         return -ENOMEM;
@@ -376,7 +377,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     UNICODE_STRING nfn;
 
     nfn.Length = newdir->Length + (newdir->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + new_dentry->d_name.len;
-    nfn.Buffer = kzalloc(nfn.Length, GFP_KERNEL);
+    nfn.Buffer = vmalloc(nfn.Length);
     if (!nfn.Buffer)
     {
         return -ENOMEM;
@@ -393,7 +394,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     {
         if (flags & RENAME_NOREPLACE)
         {
-            kfree(nfn.Buffer);
+            vfree(nfn.Buffer);
             return -EEXIST;
         }
         else
@@ -404,7 +405,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
 
             if (IS_ERR(ERR_PTR(ret)))
             {
-                kfree(nfn.Buffer);
+                vfree(nfn.Buffer);
                 return ret;
             }
         }
@@ -416,7 +417,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     {
         unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, nfn.Buffer, nfn.Length);
         KMCSFS->dict[dindex].inode = old_dentry->d_inode;
-        kfree(oldfn->Buffer);
+        vfree(oldfn->Buffer);
         oldfn->Length = nfn.Length;
         oldfn->Buffer = nfn.Buffer;
 
@@ -435,7 +436,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     }
     else
     {
-        kfree(nfn.Buffer);
+        vfree(nfn.Buffer);
         up_write(KMCSFS->op_lock);
     }
     return ret;
@@ -756,7 +757,7 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     UNICODE_STRING* fn;
     fn = inode->i_private;
 
-    uint8_t* data = kzalloc(inode->i_size, GFP_KERNEL);
+    uint8_t* data = vmalloc(inode->i_size);
     if (!data)
     {
         return ERR_PTR(-ENOMEM);

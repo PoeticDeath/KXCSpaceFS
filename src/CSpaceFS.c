@@ -166,13 +166,13 @@ void init_maps(void)
 	static const char charmap[] = "0123456789-,.; ";
 	unsigned p = 0;
 	unsigned c;
-	emap = kzalloc(65536 * sizeof(unsigned), GFP_KERNEL);
+	emap = vmalloc(65536 * sizeof(unsigned));
 	if (!emap)
 	{
 		pr_err("out of memory\n");
 		return;
 	}
-	dmap = kzalloc(256 * sizeof(unsigned), GFP_KERNEL);
+	dmap = vmalloc(256 * sizeof(unsigned));
 	if (!dmap)
 	{
 		pr_err("out of memory\n");
@@ -196,7 +196,7 @@ char* encode(char* str, unsigned long long len)
 	if (len % 2)
 	{
 		len++;
-		alc = kzalloc(len, GFP_KERNEL);
+		alc = vmalloc(len);
 		if (!alc)
 		{
 			pr_err("out of memory\n");
@@ -206,13 +206,13 @@ char* encode(char* str, unsigned long long len)
 		alc[len - 1] = 32;
 		alc[len - 2] = 46;
 	}
-	char* bytes = kzalloc(len / 2 + 1, GFP_KERNEL);
+	char* bytes = vmalloc(len / 2 + 1);
 	if (!bytes)
 	{
 		pr_err("out of memory\n");
 		if (alc)
 		{
-			kfree(alc);
+			vfree(alc);
 		}
 		return NULL;
 	}
@@ -222,7 +222,7 @@ char* encode(char* str, unsigned long long len)
 		{
 			bytes[i / 2] = emap[alc[i] << 8 | alc[i + 1]];
 		}
-		kfree(alc);
+		vfree(alc);
 	}
 	else
 	{
@@ -237,7 +237,7 @@ char* encode(char* str, unsigned long long len)
 
 char* decode(char* bytes, unsigned long long len)
 {
-	char* str = kzalloc((len + 1) * 2, GFP_KERNEL);
+	char* str = vmalloc((len + 1) * 2);
 	if (!str)
 	{
 		pr_err("out of memory\n");
@@ -582,7 +582,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 	}
 
 	bool locked = false;
-	uint8_t* buf = kzalloc(KMCSFS.sectorsize, GFP_KERNEL);
+	uint8_t* buf = vmalloc(KMCSFS.sectorsize);
 	if (!buf)
 	{
 		locked = true;
@@ -728,7 +728,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 				}
 				else
 				{
-					kfree(buf);
+					vfree(buf);
 				}
 				return 0;
 			}
@@ -791,7 +791,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 	}
 	else
 	{
-		kfree(buf);
+		vfree(buf);
 	}
 	return 0;
 }
@@ -1056,7 +1056,7 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 		return -ENOSPC;
 	}
 
-	char* newtablestr = kzalloc(KMCSFS->tablestrlen + 2, GFP_KERNEL);
+	char* newtablestr = vmalloc(KMCSFS->tablestrlen + 2);
 	if (!newtablestr)
 	{
 		pr_err("out of memory\n");
@@ -1077,11 +1077,11 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 		KMCSFS->tablestrlen++;
 	}
 
-	char* newtable = kzalloc(5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (KMCSFS->filecount + 1), GFP_KERNEL);
+	char* newtable = vmalloc(5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (KMCSFS->filecount + 1));
 	if (!newtable)
 	{
 		pr_err("out of memory\n");
-		kfree(newtablestr);
+		vfree(newtablestr);
 		return -ENOMEM;
 	}
 	memset(newtable, 0, 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (KMCSFS->filecount + 1));
@@ -1090,12 +1090,12 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	if (!newtablestren)
 	{
 		pr_err("out of memory\n");
-		kfree(newtablestr);
-		kfree(newtable);
+		vfree(newtablestr);
+		vfree(newtable);
 		return -ENOMEM;
 	}
 
-	kfree(KMCSFS->tablestr);
+	vfree(KMCSFS->tablestr);
 	KMCSFS->tablestr = newtablestr;
 
 	newtable[0] = KMCSFS->table[0];
@@ -1109,7 +1109,7 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	KMCSFS->tablesize = 1 + tablesize;
 
 	memmove(newtable + 5, newtablestren, (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
-	kfree(newtablestren);
+	vfree(newtablestren);
 
 	memmove(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, KMCSFS->filenamesend - KMCSFS->tableend);
 
@@ -1139,7 +1139,7 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	guidmodes[10] = winattrs & 0xff;
 	memmove(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 24 * (KMCSFS->filecount + 1) + 11 * KMCSFS->filecount, guidmodes, 11);
 
-	kfree(KMCSFS->table);
+	vfree(KMCSFS->table);
 	KMCSFS->table = newtable;
 
 	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->filenamesend - KMCSFS->tableend + 1, fn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, KMCSFS->filecount, false);
@@ -1344,7 +1344,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 {
 	if (size)
 	{
-		unsigned long* used_bytes = kzalloc((KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long), GFP_KERNEL);
+		unsigned long* used_bytes = vmalloc((KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long));
 		if (!used_bytes)
 		{
 			pr_err("out of memory\n");
@@ -1486,11 +1486,11 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 		{
 			if (cursize % KMCSFS->sectorsize)
 			{ // Last block was part sector
-				tempdata = kzalloc(endrlength, GFP_KERNEL);
+				tempdata = vmalloc(endrlength);
 				if (!tempdata)
 				{
 					pr_err("out of memory\n");
-					kfree(used_bytes);
+					vfree(used_bytes);
 					return false;
 				}
 				sync_read_phys(KMCSFS->size - endsector * KMCSFS->sectorsize - KMCSFS->sectorsize + endoffset - endoffset % 512, endrlength, tempdata, bdev);
@@ -1520,11 +1520,11 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 					{
 						if (cursize)
 						{
-							char* newtable = kzalloc(KMCSFS->tablestrlen + 22, GFP_KERNEL);
+							char* newtable = vmalloc(KMCSFS->tablestrlen + 22);
 							if (!newtable)
 							{
 								pr_err("out of memory\n");
-								kfree(used_bytes);
+								vfree(used_bytes);
 								return false;
 							}
 							memmove(newtable, KMCSFS->tablestr, loc);
@@ -1534,7 +1534,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 							unsigned numlen = strlen(num);
 							memmove(newtable + loc + 1, num, numlen);
 							memmove(newtable + loc + numlen + 1, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-							kfree(KMCSFS->tablestr);
+							vfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += numlen + 1;
 							loc += numlen + 1;
@@ -1545,11 +1545,11 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 						}
 						else
 						{
-							char* newtable = kzalloc(KMCSFS->tablestrlen + 21, GFP_KERNEL);
+							char* newtable = vmalloc(KMCSFS->tablestrlen + 21);
 							if (!newtable)
 							{
 								pr_err("out of memory\n");
-								kfree(used_bytes);
+								vfree(used_bytes);
 								return false;
 							}
 							memmove(newtable, KMCSFS->tablestr, loc);
@@ -1558,7 +1558,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 							unsigned numlen = strlen(num);
 							memmove(newtable + loc, num, numlen);
 							memmove(newtable + loc + numlen, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-							kfree(KMCSFS->tablestr);
+							vfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += numlen;
 							loc += numlen;
@@ -1582,11 +1582,11 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 					{
 						if (cursize)
 						{
-							char* newtable = kzalloc(KMCSFS->tablestrlen + 64, GFP_KERNEL);
+							char* newtable = vmalloc(KMCSFS->tablestrlen + 64);
 							if (!newtable)
 							{
 								pr_err("out of memory\n");
-								kfree(used_bytes);
+								vfree(used_bytes);
 								return false;
 							}
 							memmove(newtable, KMCSFS->tablestr, loc);
@@ -1603,7 +1603,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 							unsigned num3len = strlen(num3);
 							memmove(newtable + loc + 1 + num1len + 3, num3, num3len);
 							memmove(newtable + loc + 1 + num1len + 3 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-							kfree(KMCSFS->tablestr);
+							vfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += num1len + num3len + 4;
 							loc += num1len + num3len + 4;
@@ -1617,11 +1617,11 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 						}
 						else
 						{
-							char* newtable = kzalloc(KMCSFS->tablestrlen + 63, GFP_KERNEL);
+							char* newtable = vmalloc(KMCSFS->tablestrlen + 63);
 							if (!newtable)
 							{
 								pr_err("out of memory\n");
-								kfree(used_bytes);
+								vfree(used_bytes);
 								return false;
 							}
 							memmove(newtable, KMCSFS->tablestr, loc);
@@ -1637,7 +1637,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 							unsigned num3len = strlen(num3);
 							memmove(newtable + loc + num1len + 3, num3, num3len);
 							memmove(newtable + loc + num1len + 3 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-							kfree(KMCSFS->tablestr);
+							vfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += num1len + num3len + 3;
 							loc += num1len + num3len + 3;
@@ -1655,11 +1655,11 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 					{
 						if (!tablestr)
 						{
-							tablestr = kzalloc(KMCSFS->tablestrlen, GFP_KERNEL);
+							tablestr = vmalloc(KMCSFS->tablestrlen);
 							if (!tablestr)
 							{
 								pr_err("out of memory\n");
-								kfree(used_bytes);
+								vfree(used_bytes);
 								return false;
 							}
 							memmove(tablestr, KMCSFS->tablestr, KMCSFS->tablestrlen);
@@ -1667,12 +1667,12 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 
 						if (!used_sector_bytes)
 						{
-							used_sector_bytes = kzalloc(KMCSFS->sectorsize / 8, GFP_KERNEL);
+							used_sector_bytes = vmalloc(KMCSFS->sectorsize / 8);
 							if (!used_sector_bytes)
 							{
 								pr_err("out of memory\n");
-								kfree(used_bytes);
-								kfree(tablestr);
+								vfree(used_bytes);
+								vfree(tablestr);
 								return false;
 							}
 						}
@@ -1786,13 +1786,13 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 						{
 							if (cursize)
 							{
-								char* newtable = kzalloc(KMCSFS->tablestrlen + 64, GFP_KERNEL);
+								char* newtable = vmalloc(KMCSFS->tablestrlen + 64);
 								if (!newtable)
 								{
 									pr_err("out of memory\n");
-									kfree(used_bytes);
-									kfree(tablestr);
-									kfree(used_sector_bytes);
+									vfree(used_bytes);
+									vfree(tablestr);
+									vfree(used_sector_bytes);
 									return false;
 								}
 								memmove(newtable, KMCSFS->tablestr, loc);
@@ -1813,7 +1813,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 								unsigned num3len = strlen(num3);
 								memmove(newtable + loc + 1 + num1len + 1 + num2len + 1, num3, num3len);
 								memmove(newtable + loc + 1 + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-								kfree(KMCSFS->tablestr);
+								vfree(KMCSFS->tablestr);
 								KMCSFS->tablestr = newtable;
 								KMCSFS->tablestrlen += num1len + 1 + num2len + 1 + num3len + 1;
 								loc += num1len + 1 + num2len + 1 + num3len + 1;
@@ -1827,13 +1827,13 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 							}
 							else
 							{
-								char* newtable = kzalloc(KMCSFS->tablestrlen + 63, GFP_KERNEL);
+								char* newtable = vmalloc(KMCSFS->tablestrlen + 63);
 								if (!newtable)
 								{
 									pr_err("out of memory\n");
-									kfree(used_bytes);
-									kfree(tablestr);
-									kfree(used_sector_bytes);
+									vfree(used_bytes);
+									vfree(tablestr);
+									vfree(used_sector_bytes);
 									return false;
 								}
 								memmove(newtable, KMCSFS->tablestr, loc);
@@ -1853,7 +1853,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 								unsigned num3len = strlen(num3);
 								memmove(newtable + loc + num1len + 1 + num2len + 1, num3, num3len);
 								memmove(newtable + loc + num1len + 1 + num2len + 1 + num3len, KMCSFS->tablestr + loc, KMCSFS->tablestrlen - loc);
-								kfree(KMCSFS->tablestr);
+								vfree(KMCSFS->tablestr);
 								KMCSFS->tablestr = newtable;
 								KMCSFS->tablestrlen += num1len + 1 + num2len + 1 + num3len;
 								loc += num1len + 1 + num2len + 1 + num3len;
@@ -1871,22 +1871,22 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 				}
 				if (tablestr)
 				{
-					kfree(tablestr);
+					vfree(tablestr);
 				}
 				if (used_sector_bytes)
 				{
-					kfree(used_sector_bytes);
+					vfree(used_sector_bytes);
 				}
 			}
 			if (tempdata)
 			{
 				sync_write_phys(KMCSFS->size - cursector * KMCSFS->sectorsize - KMCSFS->sectorsize + newoffset, endlength, tempdata + endoffset % 512, bdev, true);
-				kfree(tempdata);
+				vfree(tempdata);
 				tempdata = NULL;
 			}
 		}
 
-		kfree(used_bytes);
+		vfree(used_bytes);
 		if (!size)
 		{
 			unsigned long long extratablesize = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 2 + 35 * KMCSFS->filecount;
@@ -1896,7 +1896,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 				return false;
 			}
 			unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
-			char* newtable = kzalloc(extratablesize, GFP_KERNEL);
+			char* newtable = vmalloc(extratablesize);
 			if (!newtable)
 			{
 				pr_err("out of memory - could not write to disk 2\n");
@@ -1906,7 +1906,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 			if (!newtablestren)
 			{
 				pr_err("out of memory - could not write to disk 3\n");
-				kfree(newtable);
+				vfree(newtable);
 				return false;
 			}
 			newtable[0] = KMCSFS->table[0];
@@ -1915,13 +1915,13 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 			newtable[3] = (tablesize >> 8) & 0xff;
 			newtable[4] = tablesize & 0xff;
 			memmove(newtable + 5, newtablestren, (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
-			kfree(newtablestren);
+			vfree(newtablestren);
 			memmove(newtable + 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, extratablesize - 5 - (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
 			KMCSFS->extratablesize = extratablesize;
 			KMCSFS->tablesize = 1 + tablesize;
 			KMCSFS->filenamesend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend;
 			KMCSFS->tableend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2;
-			kfree(KMCSFS->table);
+			vfree(KMCSFS->table);
 			KMCSFS->table = newtable;
 			sync_write_phys(0, extratablesize, newtable, bdev, true);
 			return true;
@@ -1932,7 +1932,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 	{
 		if (!KMCSFS->used_blocks)
 		{
-			unsigned long* used_bytes = kzalloc((KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long), GFP_KERNEL);
+			unsigned long* used_bytes = vmalloc((KMCSFS->size / KMCSFS->sectorsize - KMCSFS->tablesize) * sizeof(unsigned long));
 			if (!used_bytes)
 			{
 				pr_err("out of memory\n");
@@ -2027,7 +2027,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 					}
 				}
 			}
-			kfree(used_bytes);
+			vfree(used_bytes);
 		}
 		return true;
 	}
@@ -2035,18 +2035,18 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 
 int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long index)
 {
-	char* newtable = kzalloc(KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1), GFP_KERNEL);
+	char* newtable = vmalloc(KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1));
 	if (!newtable)
 	{
 		pr_err("out of memory\n");
 		return -ENOMEM;
 	}
 	memset(newtable, 0, KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1));
-	char* newtablestr = kzalloc(KMCSFS->tablestrlen, GFP_KERNEL);
+	char* newtablestr = vmalloc(KMCSFS->tablestrlen);
 	if (!newtablestr)
 	{
 		pr_err("out of memory\n");
-		kfree(newtable);
+		vfree(newtable);
 		return -ENOMEM;
 	}
 	memset(newtablestr, 0, KMCSFS->tablestrlen);
@@ -2108,8 +2108,8 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 	if (!newtablestren)
 	{
 		pr_err("out of memory\n");
-		kfree(newtable);
-		kfree(newtablestr);
+		vfree(newtable);
+		vfree(newtablestr);
 		return -ENOMEM;
 	}
 	unsigned long long extratablesize = 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 35 * (KMCSFS->filecount - 1);
@@ -2120,7 +2120,7 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 	newtable[3] = (tablesize >> 8) & 0xff;
 	newtable[4] = tablesize & 0xff;
 	memmove(newtable + 5, newtablestren, (tablestrlen + tablestrlen % 2) / 2);
-	kfree(newtablestren);
+	vfree(newtablestren);
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2, KMCSFS->table + KMCSFS->tableend, loc - KMCSFS->tableend);
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + loc - KMCSFS->tableend, KMCSFS->table + loc + len, KMCSFS->filenamesend - loc - len + 2);
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2, KMCSFS->table + KMCSFS->filenamesend + 2, 24 * index);
@@ -2136,13 +2136,13 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 	}
 
 	KMCSFS->used_blocks -= get_file_size(index, *KMCSFS) / KMCSFS->sectorsize;
-	kfree(KMCSFS->table);
+	vfree(KMCSFS->table);
 	KMCSFS->table = newtable;
 	KMCSFS->tablesize = 1 + tablesize;
 	KMCSFS->extratablesize = extratablesize;
 	KMCSFS->filenamesend = 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len;
 	KMCSFS->tableend = 5 + (tablestrlen + tablestrlen % 2) / 2;
-	kfree(KMCSFS->tablestr);
+	vfree(KMCSFS->tablestr);
 	KMCSFS->tablestr = newtablestr;
 	KMCSFS->tablestrlen = tablestrlen;
 	KMCSFS->filecount--;
@@ -2154,7 +2154,7 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	unsigned long long extratablesize = KMCSFS->filenamesend + 2 + 35 * KMCSFS->filecount - fn.Length / sizeof(WCHAR) + nfn.Length / sizeof(WCHAR);
 	unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
 
-	char* newtable = kzalloc(extratablesize, GFP_KERNEL);
+	char* newtable = vmalloc(extratablesize);
 	if (!newtable)
 	{
 		pr_err("out of memory\n");
@@ -2165,14 +2165,14 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	if (!is_table_expandable(*KMCSFS, extratablesize))
 	{
 		pr_err("table is not expandable\n");
-		kfree(newtable);
+		vfree(newtable);
 		return -ENOSPC;
 	}
 
 	unsigned long long index = get_filename_index(fn, KMCSFS);
 	if (!index)
 	{
-		kfree(newtable);
+		vfree(newtable);
 		return -ENOENT;
 	}
 
@@ -2228,7 +2228,7 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	KMCSFS->filenamesend = KMCSFS->filenamesend - fn.Length / sizeof(WCHAR) + nfn.Length / sizeof(WCHAR);
 	KMCSFS->extratablesize = extratablesize;
 	KMCSFS->tablesize = 1 + tablesize;
-	kfree(KMCSFS->table);
+	vfree(KMCSFS->table);
 	KMCSFS->table = newtable;
 
 	sync_write_phys(0, extratablesize, newtable, bdev, true);

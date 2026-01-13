@@ -20,7 +20,7 @@ bool incmp(unsigned char a, unsigned char b)
 
 Dict* CreateDict(unsigned long long size)
 {
-	Dict* dict = kzalloc(sizeof(Dict) * size, GFP_KERNEL);
+	Dict* dict = vmalloc(sizeof(Dict) * size);
 	if (dict == NULL)
 	{
 		return NULL;
@@ -34,7 +34,7 @@ Dict* ResizeDict(Dict* dict, unsigned long long oldsize, unsigned long long* new
 	Dict* ndict = NULL;
 startover:
 	*newsize *= 2;
-	ndict = kzalloc(sizeof(Dict) * *newsize, GFP_KERNEL);
+	ndict = vmalloc(sizeof(Dict) * *newsize);
 	if (ndict == NULL)
 	{
 		*newsize = oldsize;
@@ -57,7 +57,7 @@ startover:
 			}
 			if (j > *newsize - 1)
 			{
-				kfree(ndict);
+				vfree(ndict);
 				goto startover;
 			}
 			ndict[j].filenameloc = dict[i].filenameloc;
@@ -72,7 +72,7 @@ startover:
 bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, unsigned long long filenamelen, unsigned long long* cursize, unsigned long long* size, unsigned long long index, bool scan)
 {
 	unsigned long long hash = 0;
-	char* Filename = kzalloc(filenamelen + 1, GFP_KERNEL);
+	char* Filename = vmalloc(filenamelen + 1);
 	if (Filename == NULL)
 	{
 		return false;
@@ -90,7 +90,7 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 		}
 	}
 	sha3_HashBuffer(256, 0, Filename, filenamelen, &hash, 8);
-	kfree(Filename);
+	vfree(Filename);
 	unsigned long long i = hash % *size;
 	if (!i)
 	{
@@ -124,7 +124,7 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 		{
 			i++;
 		}
-		kfree(*dict);
+		vfree(*dict);
 		*dict = tdict;
 	}
 	(*cursize)++;
@@ -157,7 +157,7 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 		{
 			return true;
 		}
-		kfree(*dict);
+		vfree(*dict);
 		*dict = tdict;
 	}
 	return true;
@@ -165,7 +165,7 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 
 unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tableend, unsigned long long size, char* filename, unsigned long long filenamelen)
 {
-	char* Filename = kzalloc(filenamelen + 1, GFP_KERNEL);
+	char* Filename = vmalloc(filenamelen + 1);
 	if (Filename == NULL)
 	{
 		return 0;
@@ -193,12 +193,12 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 	{
 		if (o > size - 1)
 		{
-			kfree(Filename);
+			vfree(Filename);
 			return 0;
 		}
 		if (!dict[o].filenameloc)
 		{
-			kfree(Filename);
+			vfree(Filename);
 			return 0;
 		}
 		for (unsigned long long j = 0; j < filenamelen; j++)
@@ -216,7 +216,7 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 			}
 			if (j == filenamelen - 1 && ((table[tableend + dict[o].filenameloc + j + 1] & 0xff) == 255 || (table[tableend + dict[o].filenameloc + j + 1] & 0xff) == 42) && dict[o].hash == hash)
 			{
-				kfree(Filename);
+				vfree(Filename);
 				return o;
 			}
 		}
