@@ -1077,7 +1077,7 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 		KMCSFS->tablestrlen++;
 	}
 
-	char* newtable = vmalloc(5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (KMCSFS->filecount + 1));
+	char* newtable = vmalloc(sector_align(5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR) + 2 + 35 * (KMCSFS->filecount + 1), KMCSFS->sectorsize));
 	if (!newtable)
 	{
 		pr_err("out of memory\n");
@@ -1152,7 +1152,10 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	chtime(KMCSFS->filecount, time, 3, *KMCSFS);
 
 	KMCSFS->filecount++;
-	sync_write_phys(0, KMCSFS->filenamesend + 2 + 35 * KMCSFS->filecount, newtable, bdev, true);
+	for (unsigned long long i = 0; i < KMCSFS->filenamesend + 2 + 35 * KMCSFS->filecount; i += KMCSFS->sectorsize)
+	{
+		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, true);
+	}
 
 	return 0;
 }
@@ -1896,7 +1899,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 				return false;
 			}
 			unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
-			char* newtable = vmalloc(extratablesize);
+			char* newtable = vmalloc(sector_align(extratablesize, KMCSFS->sectorsize));
 			if (!newtable)
 			{
 				pr_err("out of memory - could not write to disk 2\n");
@@ -1923,7 +1926,10 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 			KMCSFS->tableend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2;
 			vfree(KMCSFS->table);
 			KMCSFS->table = newtable;
-			sync_write_phys(0, extratablesize, newtable, bdev, true);
+			for (unsigned long long i = 0; i < extratablesize; i += KMCSFS->sectorsize)
+			{
+				sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, true);
+			}
 			return true;
 		}
 		return false;
@@ -2035,7 +2041,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 
 int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long index)
 {
-	char* newtable = vmalloc(KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1));
+	char* newtable = vmalloc(sector_align(KMCSFS->filenamesend + 2 + 35 * (KMCSFS->filecount - 1), KMCSFS->sectorsize));
 	if (!newtable)
 	{
 		pr_err("out of memory\n");
@@ -2127,7 +2133,10 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * (index + 1), 24 * (KMCSFS->filecount - index - 1));
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1), KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount, 11 * index);
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1) + 11 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount + 11 * (index + 1), 11 * (KMCSFS->filecount - index - 1));
-	sync_write_phys(0, 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 35 * (KMCSFS->filecount - 1), newtable, bdev, true);
+	for (unsigned long long i = 0; i < 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 35 * (KMCSFS->filecount - 1); i += KMCSFS->sectorsize)
+	{
+		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, true);
+	}
 
 	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, filename.Buffer, filename.Length / sizeof(WCHAR));
 	if (dindex)
@@ -2154,7 +2163,7 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	unsigned long long extratablesize = KMCSFS->filenamesend + 2 + 35 * KMCSFS->filecount - fn.Length / sizeof(WCHAR) + nfn.Length / sizeof(WCHAR);
 	unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
 
-	char* newtable = vmalloc(extratablesize);
+	char* newtable = vmalloc(sector_align(extratablesize, KMCSFS->sectorsize));
 	if (!newtable)
 	{
 		pr_err("out of memory\n");
@@ -2231,7 +2240,10 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	vfree(KMCSFS->table);
 	KMCSFS->table = newtable;
 
-	sync_write_phys(0, extratablesize, newtable, bdev, true);
+	for (unsigned long long i = 0; i < extratablesize; i += KMCSFS->sectorsize)
+	{
+		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, true);
+	}
 
 	return 0;
 }
