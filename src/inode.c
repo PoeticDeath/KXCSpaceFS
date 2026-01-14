@@ -735,19 +735,37 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
 #endif
 {
     struct super_block* sb = dir->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     unsigned int l = strlen(symname) + 1;
+    UNICODE_STRING* pfn = dir->i_private;
+    UNICODE_STRING fn;
 
+    fn.Length = pfn->Length + (pfn->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + dentry->d_name.len;
+    fn.Buffer = vmalloc(fn.Length);
+    if (!fn.Buffer)
+    {
+        return -ENOMEM;
+    }
+    memmove(fn.Buffer, pfn->Buffer, pfn->Length);
+    fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
+    memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
+
+    down_write(KMCSFS->op_lock);
     struct inode* inode = kxcspacefs_new_inode(dir, dentry, S_IFLNK | S_IRWXUGO);
     if (IS_ERR(inode))
     {
+        up_write(KMCSFS->op_lock);
+        vfree(fn.Buffer);
         return PTR_ERR(inode);
     }
+    d_instantiate(dentry, inode);
 
-    struct file file;
-    file.f_inode = inode;
-
-    loff_t pos = 0;
-    return kxcspacefs_write(&file, symname, l, &pos);
+    unsigned long long index = get_filename_index(fn, KMCSFS);
+    unsigned long long bytes_written = 0;
+    write_file(sb->s_bdev, *KMCSFS, symname, 0, l, index, get_file_size(index, *KMCSFS), &bytes_written, true);
+    up_write(KMCSFS->op_lock);
+    vfree(fn.Buffer);
+    return 0;
 }
 
 static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inode, struct delayed_call* done)
@@ -756,19 +774,20 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     UNICODE_STRING* fn;
     fn = inode->i_private;
-
-    uint8_t* data = vmalloc(inode->i_size);
+    uint8_t* data = kzalloc(inode->i_size, GFP_KERNEL);
     if (!data)
     {
         return ERR_PTR(-ENOMEM);
     }
-
+    
     unsigned long long bytes_read = 0;
     down_read(KMCSFS->op_lock);
-    int ret = read_file(sb->s_bdev, *KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read, false);
+    unsigned long long index = get_filename_index(*fn, KMCSFS);
+    int ret = read_file(sb->s_bdev, *KMCSFS, data, 0, get_file_size(index, *KMCSFS), index, &bytes_read, true);
     up_read(KMCSFS->op_lock);
     if (IS_ERR(ERR_PTR(ret)))
     {
+        kfree(data);
         return ERR_PTR(ret);
     }
 
