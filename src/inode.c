@@ -750,16 +750,15 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
-    down_write(KMCSFS->op_lock);
     struct inode* inode = kxcspacefs_new_inode(dir, dentry, S_IFLNK | S_IRWXUGO);
     if (IS_ERR(inode))
     {
-        up_write(KMCSFS->op_lock);
         vfree(fn.Buffer);
         return PTR_ERR(inode);
     }
     d_instantiate(dentry, inode);
 
+    down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(fn, KMCSFS);
     unsigned long long bytes_written = 0;
     write_file(sb->s_bdev, *KMCSFS, symname, 0, l, index, get_file_size(index, *KMCSFS), &bytes_written, true);
