@@ -170,16 +170,82 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
 #if KXCSPACEFS_AT_LEAST(6, 17, 0)
 static int kxcspacefs_write_begin(const struct kiocb* kiocb, struct address_space* mapping, loff_t pos, unsigned len, struct folio** foliop, void** fsdata)
 {
+    struct inode* inode = file_inode(kiocb->ki_filp);
+    struct super_block* sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* fn = inode->i_private;
+
+    unsigned long long plen = pos + len;
+    down_write(KMCSFS->op_lock);
+    unsigned long long index = get_filename_index(*fn, KMCSFS);
+    if (plen > inode->i_size)
+    {
+        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
+        {
+            inode->i_size = plen;
+        }
+        else
+        {
+            up_write(KMCSFS->op_lock);
+            return -ENOSPC;
+        }
+    }
+    up_write(KMCSFS->op_lock);
+
 	return block_write_begin(mapping, pos, len, foliop, kxcspacefs_getfrag_block);
 }
 #elif KXCSPACEFS_AT_LEAST(6, 12, 0)
 static int kxcspacefs_write_begin(struct file* file, struct address_space* mapping, loff_t pos, unsigned len, struct folio** foliop, void** fsdata)
 {
+    struct inode* inode = file_inode(file);
+    struct super_block* sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* fn = inode->i_private;
+
+    unsigned long long plen = pos + len;
+    down_write(KMCSFS->op_lock);
+    unsigned long long index = get_filename_index(*fn, KMCSFS);
+    if (plen > inode->i_size)
+    {
+        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
+        {
+            inode->i_size = plen;
+        }
+        else
+        {
+            up_write(KMCSFS->op_lock);
+            return -ENOSPC;
+        }
+    }
+    up_write(KMCSFS->op_lock);
+
 	return block_write_begin(mapping, pos, len, foliop, kxcspacefs_getfrag_block);
 }
 #else
 static int kxcspacefs_write_begin(struct file* file, struct address_space* mapping, loff_t pos, unsigned len, struct page** pagep, void** fsdata)
 {
+    struct inode* inode = file_inode(file);
+    struct super_block* sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* fn = inode->i_private;
+
+    unsigned long long plen = pos + len;
+    down_write(KMCSFS->op_lock);
+    unsigned long long index = get_filename_index(*fn, KMCSFS);
+    if (plen > inode->i_size)
+    {
+        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
+        {
+            inode->i_size = plen;
+        }
+        else
+        {
+            up_write(KMCSFS->op_lock);
+            return -ENOSPC;
+        }
+    }
+    up_write(KMCSFS->op_lock);
+
 	return block_write_begin(mapping, pos, len, pagep, kxcspacefs_getfrag_block);
 }
 #endif
