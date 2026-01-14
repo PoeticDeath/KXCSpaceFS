@@ -761,7 +761,18 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(fn, KMCSFS);
     unsigned long long bytes_written = 0;
-    write_file(sb->s_bdev, *KMCSFS, symname, 0, l, index, get_file_size(index, *KMCSFS), &bytes_written, true);
+    if (find_block(sb->s_bdev, KMCSFS, index, l))
+    {
+        inode->i_size = l;
+    }
+    else
+    {
+        delete_file(sb->s_bdev, KMCSFS, fn, index);
+        up_write(KMCSFS->op_lock);
+        vfree(fn.Buffer);
+        return -ENOSPC;
+    }
+    write_file(sb->s_bdev, *KMCSFS, symname, 0, l, index, inode->i_size, &bytes_written, true);
     up_write(KMCSFS->op_lock);
     vfree(fn.Buffer);
     return 0;
@@ -781,8 +792,7 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     
     unsigned long long bytes_read = 0;
     down_read(KMCSFS->op_lock);
-    unsigned long long index = get_filename_index(*fn, KMCSFS);
-    int ret = read_file(sb->s_bdev, *KMCSFS, data, 0, get_file_size(index, *KMCSFS), index, &bytes_read, true);
+    int ret = read_file(sb->s_bdev, *KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read, true);
     up_read(KMCSFS->op_lock);
     if (IS_ERR(ERR_PTR(ret)))
     {
