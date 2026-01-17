@@ -87,8 +87,14 @@ void sync_write_phys(unsigned long long offset, unsigned long long length, char*
 	char* data = kzalloc(sector_align(offset % 512 + length, 512), GFP_KERNEL);
 	if (data)
 	{
-		bdev_rw_virt(bdev, offset / 512 + length / 512, data + sector_align(offset % 512 + length, 512) - 512, 512, REQ_OP_READ);
-		bdev_rw_virt(bdev, offset / 512, data, 512, REQ_OP_READ);
+		if ((offset + length) % 512)
+		{
+			bdev_rw_virt(bdev, offset / 512 + length / 512, data + sector_align(offset % 512 + length, 512) - 512, 512, REQ_OP_READ);
+		}
+		if (offset % 512)
+		{
+			bdev_rw_virt(bdev, offset / 512, data, 512, REQ_OP_READ);
+		}
 		if (kern)
 		{
 			memmove(data + offset % 512, buf, length);
