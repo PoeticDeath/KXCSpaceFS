@@ -40,7 +40,7 @@ typedef struct
 extern unsigned* emap;
 extern unsigned* dmap;
 void sync_read_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev);
-void sync_write_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev, bool kern);
+void sync_write_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev);
 void init_maps(void);
 char* encode(char* str, unsigned long long len);
 char* decode(char* bytes, unsigned long long len);
@@ -52,7 +52,7 @@ unsigned long chmode(unsigned long long filenameindex, unsigned long mode, KMCSp
 unsigned long chwinattrs(unsigned long long filenameindex, unsigned long winattrs, KMCSpaceFS KMCSFS);
 unsigned toint(unsigned char c);
 unsigned long long get_file_size(unsigned long long index, KMCSpaceFS KMCSFS);
-int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read, bool kern);
+int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read);
 int write_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long size, unsigned long long* bytes_written, bool kern);
 int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn, unsigned long gid, unsigned long uid, unsigned long mode, unsigned long long time);
 void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, unsigned long long newsize);

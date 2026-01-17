@@ -302,7 +302,7 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
 
     UNICODE_STRING* fn = inode->i_private;
     down_read(KMCSFS->op_lock);
-    bytes_read = read_file(sb->s_bdev, *KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read, false);
+    bytes_read = read_file(sb->s_bdev, *KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read);
     up_read(KMCSFS->op_lock);
     if (!bytes_read)
     {

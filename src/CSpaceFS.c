@@ -82,7 +82,7 @@ void sync_read_phys(unsigned long long offset, unsigned long long length, char* 
 	}
 }
 
-void sync_write_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev, bool kern)
+void sync_write_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev)
 {
 	char* data = kzalloc(sector_align(offset % 512 + length, 512), GFP_KERNEL);
 	if (data)
@@ -95,7 +95,7 @@ void sync_write_phys(unsigned long long offset, unsigned long long length, char*
 		{
 			bdev_rw_virt(bdev, offset / 512, data, 512, REQ_OP_READ);
 		}
-		if (kern)
+		if (!access_ok(buf, length))
 		{
 			memmove(data + offset % 512, buf, length);
 		}
@@ -509,7 +509,7 @@ unsigned long long get_file_size(unsigned long long index, KMCSpaceFS KMCSFS)
 	return filesize;
 }
 
-int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read, bool kern)
+int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read)
 {
 	unsigned long long loc = 0;
 	if (index)
@@ -540,6 +540,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 	bool init = true;
 	bool notzero = false;
 	bool multisector = false;
+	bool kern = !access_ok(data, length);
 	unsigned cur = 0;
 	unsigned long long int0 = 0;
 	unsigned long long int1 = 0;
@@ -787,14 +788,14 @@ int write_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsi
 						{
 							if (init)
 							{
-								sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length), data, bdev, kern);
+								sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length), data, bdev);
 								*bytes_written += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 								start += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 								init = false;
 							}
 							else
 							{
-								sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize, min(KMCSFS.sectorsize, length - *bytes_written), data + *bytes_written, bdev, kern);
+								sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize, min(KMCSFS.sectorsize, length - *bytes_written), data + *bytes_written, bdev);
 								start += min(KMCSFS.sectorsize, length - *bytes_written);
 								*bytes_written += min(KMCSFS.sectorsize, length - *bytes_written);
 							}
@@ -809,14 +810,14 @@ int write_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsi
 					{
 						if (init)
 						{
-							sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length), data, bdev, kern);
+							sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length), data, bdev);
 							*bytes_written += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 							start += min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length);
 							init = false;
 						}
 						else
 						{
-							sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize, min(KMCSFS.sectorsize, length - *bytes_written), data + *bytes_written, bdev, kern);
+							sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize, min(KMCSFS.sectorsize, length - *bytes_written), data + *bytes_written, bdev);
 							start += min(KMCSFS.sectorsize, length - *bytes_written);
 							*bytes_written += min(KMCSFS.sectorsize, length - *bytes_written);
 						}
@@ -830,14 +831,14 @@ int write_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsi
 					{
 						if (init)
 						{
-							sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1 + (start % KMCSFS.sectorsize), min(int2 - int1 - start % KMCSFS.sectorsize, length), data, bdev, kern);
+							sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1 + (start % KMCSFS.sectorsize), min(int2 - int1 - start % KMCSFS.sectorsize, length), data, bdev);
 							*bytes_written += min(int2 - int1 - start % KMCSFS.sectorsize, length);
 							start += min(int2 - int1 - start % KMCSFS.sectorsize, length);
 							init = false;
 						}
 						else
 						{
-							sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1, min(int2 - int1, length - *bytes_written), data + *bytes_written, bdev, kern);
+							sync_write_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1, min(int2 - int1, length - *bytes_written), data + *bytes_written, bdev);
 							start += min(int2 - int1, length - *bytes_written);
 							*bytes_written += min(int2 - int1, length - *bytes_written);
 						}
@@ -1101,7 +1102,7 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	KMCSFS->filecount++;
 	for (unsigned long long i = 0; i < KMCSFS->filenamesend + 2 + 35 * KMCSFS->filecount; i += KMCSFS->sectorsize)
 	{
-		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, true);
+		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev);
 	}
 
 	return 0;
@@ -1849,7 +1850,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 			}
 			if (tempdata)
 			{
-				sync_write_phys(KMCSFS->size - cursector * KMCSFS->sectorsize - KMCSFS->sectorsize + newoffset, endlength, tempdata + endoffset % 512, bdev, true);
+				sync_write_phys(KMCSFS->size - cursector * KMCSFS->sectorsize - KMCSFS->sectorsize + newoffset, endlength, tempdata + endoffset % 512, bdev);
 				vfree(tempdata);
 				tempdata = NULL;
 			}
@@ -1894,7 +1895,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 			KMCSFS->table = newtable;
 			for (unsigned long long i = 0; i < extratablesize; i += KMCSFS->sectorsize)
 			{
-				sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, true);
+				sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev);
 			}
 			return true;
 		}
@@ -2090,7 +2091,7 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1) + 11 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount + 11 * (index + 1), 11 * (KMCSFS->filecount - index - 1));
 	for (unsigned long long i = 0; i < 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 35 * (KMCSFS->filecount - 1); i += KMCSFS->sectorsize)
 	{
-		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, true);
+		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev);
 	}
 
 	if (dindex)
@@ -2184,7 +2185,7 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 
 	for (unsigned long long i = 0; i < extratablesize; i += KMCSFS->sectorsize)
 	{
-		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, true);
+		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev);
 	}
 
 	return 0;
