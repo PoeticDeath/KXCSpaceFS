@@ -2048,21 +2048,10 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 		}
 	}
 	unsigned long long loc = KMCSFS->tableend;
-	if (index)
+	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, filename.Buffer, filename.Length / sizeof(WCHAR));
+	if (index && dindex)
 	{
-		loc = 0;
-		for (unsigned long long i = KMCSFS->tableend; i < KMCSFS->filenamesend + 1; i++)
-		{
-			if (KMCSFS->table[i] == *"\xff")
-			{
-				loc++;
-				if (loc == index + 1)
-				{
-					loc = i;
-					break;
-				}
-			}
-		}
+		loc = KMCSFS->tableend + KMCSFS->dict[dindex].filenameloc - 1;
 	}
 	unsigned long long len = 0;
 	for (unsigned long long i = loc + 1; i < KMCSFS->filenamesend + 1; i++)
@@ -2104,7 +2093,6 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, true);
 	}
 
-	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, filename.Buffer, filename.Length / sizeof(WCHAR));
 	if (dindex)
 	{
 		RemoveDictEntry(KMCSFS->dict, KMCSFS->DictSize, dindex, filename.Length / sizeof(WCHAR), &KMCSFS->CurDictSize);
@@ -2152,21 +2140,10 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	}
 
 	unsigned long long loc = KMCSFS->tableend;
-	if (index)
+	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn.Buffer, fn.Length / sizeof(WCHAR));
+	if (index && dindex)
 	{
-		loc = 0;
-		for (unsigned long long i = KMCSFS->tableend; i < KMCSFS->filenamesend + 1; i++)
-		{
-			if (KMCSFS->table[i] == *"\xff")
-			{
-				loc++;
-				if (loc == index + 1)
-				{
-					loc = i;
-					break;
-				}
-			}
-		}
+		loc = KMCSFS->tableend + KMCSFS->dict[dindex].filenameloc - 1;
 	}
 
 	newtable[0] = KMCSFS->table[0];
@@ -2186,7 +2163,6 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	}
 	memmove(newtable + loc + 1 + nfn.Length / sizeof(WCHAR), KMCSFS->table + loc + 1 + fn.Length / sizeof(WCHAR), KMCSFS->filenamesend - loc - 1 - fn.Length / sizeof(WCHAR) + 2 + 35 * KMCSFS->filecount);
 
-	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn.Buffer, fn.Length / sizeof(WCHAR));
 	if (dindex)
 	{
 		unsigned long long filenameloc = KMCSFS->dict[dindex].filenameloc;
