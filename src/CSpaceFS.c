@@ -89,7 +89,7 @@ void sync_write_phys(unsigned long long offset, unsigned long long length, char*
 	{
 		if ((offset + length) % 512)
 		{
-			bdev_rw_virt(bdev, offset / 512 + length / 512, data + sector_align(offset % 512 + length, 512) - 512, 512, REQ_OP_READ);
+			bdev_rw_virt(bdev, (offset + length) / 512, data + sector_align(offset % 512 + length, 512) - 512, 512, REQ_OP_READ);
 		}
 		if (offset % 512)
 		{
@@ -563,7 +563,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 						{
 							if (init)
 							{
-								sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize + (start % KMCSFS.sectorsize) - (start % 512), min(sector_align(KMCSFS.sectorsize - start % KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % KMCSFS.sectorsize) - (start % 512), bdev);
+								sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - (int3 + o) * KMCSFS.sectorsize + (start % KMCSFS.sectorsize) - (start % 512), min(sector_align(KMCSFS.sectorsize - start % KMCSFS.sectorsize, 512), sector_align(length + start % 512, 512)), buf + (start % KMCSFS.sectorsize) - (start % 512), bdev);
 								if (kern)
 								{
 									memmove(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
@@ -601,7 +601,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 					{
 						if (init)
 						{
-							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + (start % KMCSFS.sectorsize) - (start % 512), min(sector_align(KMCSFS.sectorsize - start % KMCSFS.sectorsize, 512), sector_align(length, 512)), buf + (start % KMCSFS.sectorsize) - (start % 512), bdev);
+							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + (start % KMCSFS.sectorsize) - (start % 512), min(sector_align(KMCSFS.sectorsize - start % KMCSFS.sectorsize, 512), sector_align(length + start % 512, 512)), buf + (start % KMCSFS.sectorsize) - (start % 512), bdev);
 							if (kern)
 							{
 								memmove(data, buf + (start % KMCSFS.sectorsize), min(KMCSFS.sectorsize - start % KMCSFS.sectorsize, length));
