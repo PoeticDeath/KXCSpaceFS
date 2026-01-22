@@ -9,6 +9,7 @@
 
 #include "super.h"
 
+#include "linuxfs.h"
 #include "Dict.h"
 #include "cspacefs.h"
 
@@ -79,7 +80,7 @@ static int kxcspacefs_getfrag_block(struct inode* inode, sector_t fragment, stru
 				case 1:
 					break;
 				case 2:
-					filesize += int2 - int1;
+					//filesize += int2 - int1;
 					break;
 				}
                 if (filesize > fragment)
@@ -148,16 +149,6 @@ static int kxcspacefs_getfrag_block(struct inode* inode, sector_t fragment, stru
         map_bh(bh_result, sb, phys / 512 + fragment % KMCSFS->sectorsize / 512);
     }
     return 0;
-}
-
-static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
-{
-	return mpage_read_folio(folio, kxcspacefs_getfrag_block);
-}
-
-static int kxcspacefs_writepages(struct address_space* mapping, struct writeback_control* wbc)
-{
-	return mpage_writepages(mapping, wbc, kxcspacefs_getfrag_block);
 }
 
 static sector_t kxcspacefs_bmap(struct address_space* mapping, sector_t block)
@@ -270,6 +261,37 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
     return bytes_write;
 }
 
+static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
+{
+    if (!folio_test_uptodate(folio))
+    {
+        struct address_space* mapping = folio_mapping(folio);
+        unsigned long pagesrem = mapping->nrpages - folio->index;
+        size_t len = pagesrem * 4096;
+        loff_t pos = folio_pos(folio);
+        char* buf = vmalloc(len);
+        kxcspacefs_read(file, buf, len, &pos);
+
+        for (unsigned long i = 0; i < pagesrem; i++)
+        {
+            struct folio* nfolio = xa_load(&mapping->i_pages, folio->index + i);
+            char* nbuf = kmap_local_folio(nfolio, 0);
+            memmove(nbuf, buf + i * 4096, 4096);
+            folio_mark_uptodate(nfolio);
+            kunmap_local(nbuf);
+            folio_unlock(nfolio);
+        }
+
+        vfree(buf);
+    }
+    return folio_size(folio);
+}
+
+static int kxcspacefs_writepages(struct address_space* mapping, struct writeback_control* wbc)
+{
+    return mpage_writepages(mapping, wbc, kxcspacefs_getfrag_block);
+}
+
 const struct address_space_operations kxcspacefs_aops =
 {
 	.read_folio = kxcspacefs_read_folio,
@@ -281,16 +303,19 @@ const struct address_space_operations kxcspacefs_aops =
 const struct file_operations kxcspacefs_file_ops =
 {
     .owner = THIS_MODULE,
+#if KXCSPACEFS_AT_LEAST(3, 16, 0)
     .read_iter = generic_file_read_iter,
     .write_iter = generic_file_write_iter,
+#else
+    .read = kxcspacefs_read,
+#endif
+    .write = kxcspacefs_write,
 #if KXCSPACEFS_AT_LEAST(6, 17, 0)
     .mmap_prepare = generic_file_mmap_prepare,
 #else
     .mmap = generic_file_mmap,
 #endif
     .open = kxcspacefs_open,
-    .read = kxcspacefs_read,
-    .write = kxcspacefs_write,
     .llseek = generic_file_llseek,
     .fsync = generic_file_fsync,
 };
