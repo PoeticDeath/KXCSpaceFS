@@ -281,7 +281,27 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
             }
         }
 
-        unsigned long pagesrem = mapping->nrpages - index;
+        unsigned long pagesrem = 0;
+        loff_t lastpos = pos - 4096;
+
+        for (unsigned long i = index; i < mapping->nrpages; i++)
+        {
+            struct folio* nfolio = xa_load(&mapping->i_pages, i);
+            if (nfolio)
+            {   
+                loff_t nextpos = folio_pos(nfolio);
+                if (nextpos == lastpos + 4096)
+                {
+                    lastpos = nextpos;
+                    pagesrem++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
         size_t len = max(pagesrem, 1) * 4096;
         char* buf = vmalloc(len);
         kxcspacefs_read(file, buf, len, &pos);
@@ -297,7 +317,6 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
                     memmove(nbuf, buf + i * 4096, 4096);
                     folio_mark_uptodate(nfolio);
                     kunmap_local(nbuf);
-                    folio_unlock(nfolio);
                 }
             }
         }
@@ -309,12 +328,12 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
                 memmove(nbuf, buf, 4096);
                 folio_mark_uptodate(folio);
                 kunmap_local(nbuf);
-                folio_unlock(folio);
             }
         }
 
         vfree(buf);
     }
+    folio_unlock(folio);
     return folio_size(folio);
 }
 
