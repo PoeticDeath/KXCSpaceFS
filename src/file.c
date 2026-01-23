@@ -339,13 +339,107 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
 
 static int kxcspacefs_writepages(struct address_space* mapping, struct writeback_control* wbc)
 {
-    return mpage_writepages(mapping, wbc, kxcspacefs_getfrag_block);
+    struct folio *folio = NULL;
+	struct blk_plug plug;
+	int error = 0;
+	blk_start_plug(&plug);
+	while ((folio = writeback_iter(mapping, wbc, folio, &error)))
+	{
+        if (folio)
+        {
+            struct file file;
+            file.f_inode = folio_inode(folio);
+            char* nbuf = kmap_local_folio(folio, 0);
+            loff_t pos = folio_pos(folio);
+            size_t len = folio_size(folio);
+            if (pos + len > folio_inode(folio)->i_size)
+            {
+                len = folio_inode(folio)->i_size - pos;
+            }
+            kxcspacefs_write(&file, nbuf, len, &pos);
+            kunmap_local(nbuf);
+            folio_unlock(folio);
+        }
+    }
+	blk_finish_plug(&plug);
+	return error;
 }
+
+
+#if KXCSPACEFS_AT_LEAST(6, 17, 0)
+static int kxcspacefs_write_begin(const struct kiocb* kiocb, struct address_space* mapping, loff_t pos, unsigned len, struct folio** foliop, void** fsdata)
+{
+    struct inode* inode = file_inode(kiocb->ki_filp);
+    struct super_block* sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* fn = inode->i_private;
+
+    unsigned long long plen = pos + len;
+    down_write(KMCSFS->op_lock);
+    unsigned long long index = get_filename_index(*fn, KMCSFS);
+    if (plen > inode->i_size)
+    {
+        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
+        {
+            inode->i_size = plen;
+        }
+        else
+        {
+            up_write(KMCSFS->op_lock);
+            return -ENOSPC;
+        }
+    }
+    up_write(KMCSFS->op_lock);
+
+	*foliop = __filemap_get_folio(mapping, pos / 4096, FGP_WRITEBEGIN, mapping_gfp_mask(mapping));
+    struct buffer_head* bh = folio_buffers(*foliop);
+    if (!bh)
+    {
+        bh = create_empty_buffers(*foliop, 4096, 0);
+    }
+    return 0;
+}
+#elif KXCSPACEFS_AT_LEAST(6, 12, 0)
+static int kxcspacefs_write_begin(struct file* file, struct address_space* mapping, loff_t pos, unsigned len, struct folio** foliop, void** fsdata)
+{
+    struct inode* inode = file_inode(file);
+    struct super_block* sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* fn = inode->i_private;
+
+    unsigned long long plen = pos + len;
+    down_write(KMCSFS->op_lock);
+    unsigned long long index = get_filename_index(*fn, KMCSFS);
+    if (plen > inode->i_size)
+    {
+        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
+        {
+            inode->i_size = plen;
+        }
+        else
+        {
+            up_write(KMCSFS->op_lock);
+            return -ENOSPC;
+        }
+    }
+    up_write(KMCSFS->op_lock);
+
+	*foliop = __filemap_get_folio(mapping, pos / 4096, FGP_WRITEBEGIN, mapping_gfp_mask(mapping));
+    struct buffer_head* bh = folio_buffers(*foliop);
+    if (!bh)
+    {
+        bh = create_empty_buffers(*foliop, 4096, 0);
+    }
+    return 0;
+}
+#endif
 
 const struct address_space_operations kxcspacefs_aops =
 {
 	.read_folio = kxcspacefs_read_folio,
 	.writepages = kxcspacefs_writepages,
+    .write_begin = kxcspacefs_write_begin,
+	.write_end = generic_write_end,
     .dirty_folio = filemap_dirty_folio,
     .bmap = kxcspacefs_bmap,
 };
@@ -358,8 +452,8 @@ const struct file_operations kxcspacefs_file_ops =
     .write_iter = generic_file_write_iter,
 #else
     .read = kxcspacefs_read,
-#endif
     .write = kxcspacefs_write,
+#endif
 #if KXCSPACEFS_AT_LEAST(6, 17, 0)
     .mmap_prepare = generic_file_mmap_prepare,
 #else

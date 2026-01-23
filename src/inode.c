@@ -664,9 +664,6 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
         return ret;
     }
 
-    struct file file;
-    file.f_inode = dentry->d_inode;
-
     UNICODE_STRING* fn = dentry->d_inode->i_private;
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
