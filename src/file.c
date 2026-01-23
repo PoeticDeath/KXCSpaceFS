@@ -266,20 +266,51 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
     if (!folio_test_uptodate(folio))
     {
         struct address_space* mapping = folio_mapping(folio);
-        unsigned long pagesrem = mapping->nrpages - folio->index;
-        size_t len = pagesrem * 4096;
         loff_t pos = folio_pos(folio);
+        unsigned long index = 0;
+
+        for (; index < mapping->nrpages; index++)
+        {
+            struct folio* nfolio = xa_load(&mapping->i_pages, index);
+            if (nfolio)
+            {
+                if (folio_pos(nfolio) == pos)
+                {
+                    break;
+                }
+            }
+        }
+
+        unsigned long pagesrem = mapping->nrpages - index;
+        size_t len = max(pagesrem, 1) * 4096;
         char* buf = vmalloc(len);
         kxcspacefs_read(file, buf, len, &pos);
 
-        for (unsigned long i = 0; i < pagesrem; i++)
+        if (pagesrem)
         {
-            struct folio* nfolio = xa_load(&mapping->i_pages, folio->index + i);
-            char* nbuf = kmap_local_folio(nfolio, 0);
-            memmove(nbuf, buf + i * 4096, 4096);
-            folio_mark_uptodate(nfolio);
-            kunmap_local(nbuf);
-            folio_unlock(nfolio);
+            for (unsigned long i = 0; i < pagesrem; i++)
+            {
+                struct folio* nfolio = xa_load(&mapping->i_pages, index + i);
+                if (nfolio)
+                {
+                    char* nbuf = kmap_local_folio(nfolio, 0);
+                    memmove(nbuf, buf + i * 4096, 4096);
+                    folio_mark_uptodate(nfolio);
+                    kunmap_local(nbuf);
+                    folio_unlock(nfolio);
+                }
+            }
+        }
+        else
+        {
+            if (folio)
+            {
+                char* nbuf = kmap_local_folio(folio, 0);
+                memmove(nbuf, buf, 4096);
+                folio_mark_uptodate(folio);
+                kunmap_local(nbuf);
+                folio_unlock(folio);
+            }
         }
 
         vfree(buf);
