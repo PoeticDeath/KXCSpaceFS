@@ -44,7 +44,23 @@ static int kxcspacefs_sync_fs(struct super_block* sb, int wait)
 {
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
-    // Future
+    for (unsigned long long i = 0; i < KMCSFS->DictSize; i++)
+	{
+		struct file file;
+		file.f_inode = KMCSFS->dict[i].inode;
+		if (file.f_inode)
+		{
+			file.f_mapping = file.f_inode->i_mapping;
+			if (file.f_mapping)
+			{
+				UNICODE_STRING* fn = KMCSFS->dict[i].inode->i_private;
+				if (fn)
+				{
+					generic_file_fsync(&file, 0, get_file_size(get_filename_index(*fn, KMCSFS), *KMCSFS), true);
+				}
+			}
+		}
+	}
 
     return 0;
 }
