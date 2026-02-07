@@ -23,22 +23,7 @@ static int kxcspacefs_getfrag_block(struct inode* inode, sector_t fragment, stru
 
     down_read(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
-    unsigned long long loc = 0;
-	if (index)
-	{
-		for (unsigned long long i = 0; i < KMCSFS->tablestrlen; i++)
-		{
-			if (KMCSFS->tablestr[i] == *".")
-			{
-				loc++;
-				if (loc == index)
-				{
-					loc = i + 1;
-					break;
-				}
-			}
-		}
-	}
+    unsigned long long loc = get_strloc(index, *KMCSFS);
 
 	bool notzero = false;
 	bool multisector = false;

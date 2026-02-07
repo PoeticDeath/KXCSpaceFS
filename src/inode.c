@@ -533,22 +533,7 @@ static int kxcspacefs_fiemap(struct inode* inode, struct fiemap_extent_info* fie
     unsigned long long index = get_filename_index(*fn, KMCSFS);
     unsigned long long maxsize = get_file_size(index, *KMCSFS);
     maxsize -= maxsize % KMCSFS->sectorsize;
-    unsigned long long loc = 0;
-	if (index)
-	{
-		for (unsigned long long i = 0; i < KMCSFS->tablestrlen; i++)
-		{
-			if (KMCSFS->tablestr[i] == *".")
-			{
-				loc++;
-				if (loc == index)
-				{
-					loc = i + 1;
-					break;
-				}
-			}
-		}
-	}
+    unsigned long long loc = get_strloc(index, *KMCSFS);
 
 	bool notzero = false;
 	bool multisector = false;
