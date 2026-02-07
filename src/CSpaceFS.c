@@ -627,9 +627,9 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 					filesize += int2 - int1;
 					if (filesize > start)
 					{
-						sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1 - int1 % 512, sector_align(int2 - int1 + int1 % 512, 512), buf + int1 - int1 % 512, bdev);
 						if (init)
 						{
+							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1 - int1 % 512 + start % KMCSFS.sectorsize - start % 512, sector_align(int2 - int1 + int1 % 512 - start % KMCSFS.sectorsize + start % 512, 512), buf + int1 - int1 % 512 + start % KMCSFS.sectorsize - start % 512, bdev);
 							if (kern)
 							{
 								memmove(data, buf + int1 + (start % KMCSFS.sectorsize), min(int2 - int1, length));
@@ -644,6 +644,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 						}
 						else
 						{
+							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1 - int1 % 512, sector_align(int2 - int1 + int1 % 512, 512), buf + int1 - int1 % 512, bdev);
 							if (kern)
 							{
 								memmove(data + *bytes_read, buf + int1, min(int2 - int1, length - *bytes_read));
