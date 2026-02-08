@@ -520,7 +520,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 	unsigned long long loc = get_strloc(index, KMCSFS);
 
 	bool locked = false;
-	uint8_t* buf = vmalloc(KMCSFS.sectorsize);
+	uint8_t* buf = NULL;//vmalloc(KMCSFS.sectorsize);
 	if (!buf)
 	{
 		locked = true;
@@ -629,7 +629,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS KMCSFS, uint8_t* data, unsig
 					{
 						if (init)
 						{
-							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1 - int1 % 512 + start % KMCSFS.sectorsize - start % 512, sector_align(int2 - int1 + int1 % 512 - start % KMCSFS.sectorsize + start % 512, 512), buf + int1 - int1 % 512 + start % KMCSFS.sectorsize - start % 512, bdev);
+							sync_read_phys(KMCSFS.size - KMCSFS.sectorsize - int0 * KMCSFS.sectorsize + int1 - int1 % 512 + start % KMCSFS.sectorsize - start % 512, min(sector_align(int2 - int1 + int1 % 512 - start % KMCSFS.sectorsize + start % 512, 512), sector_align(length + 512, 512)), buf + int1 - int1 % 512 + start % KMCSFS.sectorsize - start % 512, bdev);
 							if (kern)
 							{
 								memmove(data, buf + int1 + (start % KMCSFS.sectorsize), min(int2 - int1, length));
