@@ -463,6 +463,33 @@ static int kxcspacefs_write_end(const struct kiocb* kiocb, struct address_space*
     return copied;
 }
 
+long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len)
+{
+    struct inode* inode = file_inode(file);
+    struct super_block* sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* fn = inode->i_private;
+
+    unsigned long long plen = offset + len;
+    if (plen > inode->i_size)
+    {
+        down_write(KMCSFS->op_lock);
+        unsigned long long index = get_filename_index(*fn, KMCSFS);
+        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
+        {
+            inode->i_size = plen;
+        }
+        else
+        {
+            up_write(KMCSFS->op_lock);
+            return -ENOSPC;
+        }
+        up_write(KMCSFS->op_lock);
+    }
+
+    return inode->i_size;
+}
+
 const struct address_space_operations kxcspacefs_aops =
 {
 	.read_folio = kxcspacefs_read_folio,
@@ -491,4 +518,5 @@ const struct file_operations kxcspacefs_file_ops =
     .open = kxcspacefs_open,
     .llseek = generic_file_llseek,
     .fsync = generic_file_fsync,
+    .fallocate = kxcspacefs_fallocate,
 };
