@@ -463,6 +463,176 @@ static int kxcspacefs_write_end(const struct kiocb* kiocb, struct address_space*
     return copied;
 }
 
+ssize_t kxcspacefs_perform_write(struct kiocb* iocb, struct iov_iter* i)
+{
+	struct file* file = iocb->ki_filp;
+	loff_t pos = iocb->ki_pos;
+	struct address_space* mapping = file->f_mapping;
+	const struct address_space_operations* a_ops = mapping->a_ops;
+	size_t chunk = mapping_max_folio_size(mapping);
+	long status = 0;
+	ssize_t written = 0;
+
+	do {
+		struct folio* folio;
+		size_t offset;		/* Offset into folio */
+		size_t bytes;		/* Bytes to write to folio */
+		size_t copied;		/* Bytes copied from user */
+		void* fsdata = NULL;
+
+		bytes = iov_iter_count(i);
+retry:
+		offset = pos & (chunk - 1);
+		balance_dirty_pages_ratelimited(mapping);
+
+		if (fatal_signal_pending(current))
+        {
+			status = -EINTR;
+			break;
+		}
+
+		status = a_ops->write_begin(iocb, mapping, pos, bytes, &folio, &fsdata);
+		if (unlikely(status < 0))
+        {
+			break;
+        }
+        bytes = min(chunk - offset, bytes);
+
+		offset = offset_in_folio(folio, pos);
+		if (bytes > folio_size(folio) - offset)
+        {
+			bytes = folio_size(folio) - offset;
+        }
+
+		if (mapping_writably_mapped(mapping))
+        {
+			flush_dcache_folio(folio);
+        }
+
+		/*
+		 * Faults here on mmap()s can recurse into arbitrary
+		 * filesystem code. Lots of locks are held that can
+		 * deadlock. Use an atomic copy to avoid deadlocking
+		 * in page fault handling.
+		 */
+		copied = copy_folio_from_iter_atomic(folio, offset, bytes, i);
+		flush_dcache_folio(folio);
+
+		status = a_ops->write_end(iocb, mapping, pos, bytes, copied, folio, fsdata);
+		if (unlikely(status != copied))
+        {
+			iov_iter_revert(i, copied - max(status, 0L));
+			if (unlikely(status < 0))
+            {
+				break;
+            }
+		}
+		cond_resched();
+
+		if (unlikely(status == 0))
+        {
+			/*
+			 * A short copy made ->write_end() reject the
+			 * thing entirely.  Might be memory poisoning
+			 * halfway through, might be a race with munmap,
+			 * might be severe memory pressure.
+			 */
+			if (chunk > PAGE_SIZE)
+            {
+				chunk /= 2;
+            }
+			if (copied)
+            {
+				bytes = copied;
+				goto retry;
+			}
+
+			/*
+			 * 'folio' is now unlocked and faults on it can be
+			 * handled. Ensure forward progress by trying to
+			 * fault it in now.
+			 */
+			if (fault_in_iov_iter_readable(i, bytes) == bytes)
+            {
+				status = -EFAULT;
+				break;
+			}
+		}
+        else
+        {
+			pos += status;
+			written += status;
+		}
+	} while (iov_iter_count(i));
+
+	if (!written)
+    {
+		return status;
+    }
+	iocb->ki_pos += written;
+	return written;
+}
+
+ssize_t __kxcspacefs_file_write_iter(struct kiocb* iocb, struct iov_iter* from)
+{
+	struct file* file = iocb->ki_filp;
+	struct address_space* mapping = file->f_mapping;
+	struct inode* inode = mapping->host;
+	ssize_t ret;
+
+	ret = file_remove_privs(file);
+	if (ret)
+    {
+		return ret;
+    }
+
+	ret = file_update_time(file);
+	if (ret)
+    {
+		return ret;
+    }
+
+	if (iocb->ki_flags & IOCB_DIRECT)
+    {
+		ret = generic_file_direct_write(iocb, from);
+		/*
+		 * If the write stopped short of completing, fall back to
+		 * buffered writes.  Some filesystems do this for writes to
+		 * holes, for example.  For DAX files, a buffered write will
+		 * not succeed (even if it did, DAX does not handle dirty
+		 * page-cache pages correctly).
+		 */
+		if (ret < 0 || !iov_iter_count(from) || IS_DAX(inode))
+        {
+			return ret;
+        }
+		return direct_write_fallback(iocb, from, ret, kxcspacefs_perform_write(iocb, from));
+	}
+
+	return kxcspacefs_perform_write(iocb, from);
+}
+
+ssize_t kxcspacefs_file_write_iter(struct kiocb* iocb, struct iov_iter* from)
+{
+	struct file* file = iocb->ki_filp;
+	struct inode* inode = file->f_mapping->host;
+	ssize_t ret;
+
+	inode_lock(inode);
+	ret = generic_write_checks(iocb, from);
+	if (ret > 0)
+    {
+		ret = __kxcspacefs_file_write_iter(iocb, from);
+    }
+	inode_unlock(inode);
+
+	if (ret > 0)
+    {
+		ret = generic_write_sync(iocb, ret);
+    }
+	return ret;
+}
+
 long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len)
 {
     struct inode* inode = file_inode(file);
@@ -505,7 +675,7 @@ const struct file_operations kxcspacefs_file_ops =
     .owner = THIS_MODULE,
 #if KXCSPACEFS_AT_LEAST(3, 16, 0)
     .read_iter = generic_file_read_iter,
-    .write_iter = generic_file_write_iter,
+    .write_iter = kxcspacefs_file_write_iter,
 #else
     .read = kxcspacefs_read,
     .write = kxcspacefs_write,
