@@ -325,7 +325,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
 static int kxcspacefs_writepages(struct address_space* mapping, struct writeback_control* wbc)
 {
     struct file file;
-    struct folio *folio = NULL;
+    struct folio* folio = NULL;
 	struct blk_plug plug;
     char* buf = NULL;
     unsigned long long buflen = 0;
@@ -438,11 +438,6 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
     if (!bh)
     {
         bh = create_empty_buffers(*foliop, 4096, 0);
-        loff_t toff = pos - pos % 4096;
-        if ((toff != pos) || (len < 4096))
-        {
-            kxcspacefs_read(kiocb->ki_filp, bh->b_data, 4096, &toff);
-        }
     }
     return 0;
 }

@@ -56,7 +56,7 @@ static int kxcspacefs_sync_fs(struct super_block* sb, int wait)
 				UNICODE_STRING* fn = KMCSFS->dict[i].inode->i_private;
 				if (fn)
 				{
-					generic_file_fsync(&file, 0, get_file_size(get_filename_index(*fn, KMCSFS), *KMCSFS), true);
+					generic_file_fsync(&file, 0, get_file_size(get_filename_index(*fn, KMCSFS), *KMCSFS), false);
 				}
 			}
 		}
