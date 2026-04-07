@@ -120,7 +120,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     inode->i_mtime.tv_nsec = 0;
 #endif
 
-    inode->i_blocks = inode->i_size / 512;
+    inode->i_blocks = (inode->i_size + 511) / 512;
     set_nlink(inode, 1);
 
     if (S_ISDIR(inode->i_mode))
@@ -506,6 +506,7 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
                 dealloc(KMCSFS, index, size, iattr->ia_size);
             }
             inode->i_size = get_file_size(index, *KMCSFS);
+            inode->i_blocks = (inode->i_size + 511) / 512;
         }
 	}
     up_write(KMCSFS->op_lock);
@@ -656,6 +657,7 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
     if (!IS_ERR(ERR_PTR(ret)))
     {
         dentry->d_inode->i_size = sizeof(dev_t);
+        dentry->d_inode->i_blocks = (dentry->d_inode->i_size + 511) / 512;
         unsigned long long bytes_written = 0;
         char buf[sizeof(dev_t)] = {0};
         memmove(buf, &dev, sizeof(dev_t));
@@ -746,6 +748,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     if (find_block(sb->s_bdev, KMCSFS, index, l))
     {
         inode->i_size = l;
+        inode->i_blocks = (inode->i_size + 511) / 512;
     }
     else
     {

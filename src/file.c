@@ -220,6 +220,7 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
         if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
         {
             inode->i_size = plen;
+            inode->i_blocks = (inode->i_size + 511) / 512;
         }
         else
         {
@@ -424,6 +425,7 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
         if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
         {
             inode->i_size = plen;
+            inode->i_blocks = (inode->i_size + 511) / 512;
         }
         else
         {
@@ -648,6 +650,7 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
         if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
         {
             inode->i_size = plen;
+            inode->i_blocks = (inode->i_size + 511) / 512;
         }
         else
         {
