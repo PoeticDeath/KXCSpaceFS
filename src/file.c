@@ -358,7 +358,9 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             }
             else
             {
-                if (buflastpos != pos - folio_size(folio))
+                struct super_block* sb = file.f_inode->i_sb;
+                KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+                if ((buflastpos != pos - folio_size(folio)) || (buflen >= KMCSFS->sectorsize))
                 {
                     kxcspacefs_write(&file, buf, buflen, &bufstartpos);
                     vfree(buf);
@@ -445,18 +447,6 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
 static int kxcspacefs_write_end(const struct kiocb* kiocb, struct address_space* mapping, loff_t pos, unsigned len, unsigned copied, struct folio* folio, void* fsdata)
 {
     copied = block_write_end(pos, len, copied, folio);
-
-    struct file file;
-    file.f_inode = folio_inode(folio);
-    char* nbuf = kmap_local_folio(folio, 0);
-    loff_t bpos = folio_pos(folio);
-    size_t blen = folio_size(folio);
-    if (bpos + blen > folio_inode(folio)->i_size)
-    {
-        blen = folio_inode(folio)->i_size - bpos;
-    }
-    kxcspacefs_write(&file, nbuf, blen, &bpos);
-    kunmap_local(nbuf);
     
     folio_unlock(folio);
 	folio_put(folio);
