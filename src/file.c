@@ -338,7 +338,11 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
 	blk_start_plug(&plug);
 	while ((folio = writeback_iter(mapping, wbc, folio, &error)))
 	{
-        if (folio)
+        if (!folio)
+        {
+            continue;
+        }
+        if (!folio_test_uptodate(folio))
         {
             file.f_inode = folio_inode(folio);
             char* nbuf = kmap_local_folio(folio, 0);
@@ -393,8 +397,8 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             memmove(buf + buflen, nbuf, len);
             buflen += len;
             kunmap_local(nbuf);
-            folio_unlock(folio);
         }
+        folio_unlock(folio);
     }
     if (buf)
     {
@@ -460,6 +464,7 @@ static int kxcspacefs_write_end(const struct kiocb* kiocb, struct address_space*
         blen = folio_inode(folio)->i_size - bpos;
     }
     kxcspacefs_write(&file, nbuf, blen, &bpos);
+    folio_mark_uptodate(folio);
     kunmap_local(nbuf);
 
     folio_unlock(folio);
