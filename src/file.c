@@ -270,7 +270,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
         }
 
         unsigned long pagesrem = 0;
-        loff_t lastpos = pos - 4096;
+        loff_t lastpos = pos - PAGE_SIZE;
 
         for (unsigned long i = index; i < mapping->nrpages; i++)
         {
@@ -278,7 +278,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
             if (nfolio)
             {   
                 loff_t nextpos = folio_pos(nfolio);
-                if (nextpos == lastpos + 4096)
+                if (nextpos == lastpos + PAGE_SIZE)
                 {
                     lastpos = nextpos;
                     pagesrem++;
@@ -290,7 +290,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
             }
         }
 
-        size_t len = max(pagesrem, 1) * 4096;
+        size_t len = max(pagesrem, 1) * PAGE_SIZE;
         char* buf = vmalloc(len);
         kxcspacefs_read(file, buf, len, &pos);
 
@@ -302,7 +302,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
                 if (nfolio)
                 {
                     char* nbuf = kmap_local_folio(nfolio, 0);
-                    memmove(nbuf, buf + i * 4096, 4096);
+                    memmove(nbuf, buf + i * PAGE_SIZE, PAGE_SIZE);
                     folio_mark_uptodate(nfolio);
                     kunmap_local(nbuf);
                 }
@@ -313,7 +313,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
             if (folio)
             {
                 char* nbuf = kmap_local_folio(folio, 0);
-                memmove(nbuf, buf, 4096);
+                memmove(nbuf, buf, PAGE_SIZE);
                 folio_mark_uptodate(folio);
                 kunmap_local(nbuf);
             }
@@ -338,11 +338,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
 	blk_start_plug(&plug);
 	while ((folio = writeback_iter(mapping, wbc, folio, &error)))
 	{
-        if (!folio)
-        {
-            continue;
-        }
-        if (!folio_test_uptodate(folio))
+        if (folio)
         {
             file.f_inode = folio_inode(folio);
             char* nbuf = kmap_local_folio(folio, 0);
@@ -397,8 +393,8 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             memmove(buf + buflen, nbuf, len);
             buflen += len;
             kunmap_local(nbuf);
+            folio_unlock(folio);
         }
-        folio_unlock(folio);
     }
     if (buf)
     {
@@ -441,11 +437,11 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
         up_write(KMCSFS->op_lock);
     }
 
-	*foliop = __filemap_get_folio(mapping, pos / 4096, FGP_WRITEBEGIN, mapping_gfp_mask(mapping));
+	*foliop = __filemap_get_folio(mapping, pos / PAGE_SIZE, FGP_WRITEBEGIN, mapping_gfp_mask(mapping));
     struct buffer_head* bh = folio_buffers(*foliop);
     if (!bh)
     {
-        bh = create_empty_buffers(*foliop, 4096, 0);
+        bh = create_empty_buffers(*foliop, PAGE_SIZE, 0);
     }
     return 0;
 }
@@ -464,7 +460,6 @@ static int kxcspacefs_write_end(const struct kiocb* kiocb, struct address_space*
         blen = folio_inode(folio)->i_size - bpos;
     }
     kxcspacefs_write(&file, nbuf, blen, &bpos);
-    folio_mark_uptodate(folio);
     kunmap_local(nbuf);
 
     folio_unlock(folio);
