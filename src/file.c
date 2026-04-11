@@ -1,3 +1,5 @@
+// Copyright (c) Anthony Kerr 2026-
+
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/buffer_head.h>
@@ -23,7 +25,7 @@ static int kxcspacefs_getfrag_block(struct inode* inode, sector_t fragment, stru
 
     down_read(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
-    unsigned long long loc = get_strloc(index, *KMCSFS);
+    unsigned long long loc = get_strloc(index, KMCSFS);
 
 	bool notzero = false;
 	bool multisector = false;
@@ -188,7 +190,7 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
 
     UNICODE_STRING* fn = inode->i_private;
     down_read(KMCSFS->op_lock);
-    bytes_read = read_file(sb->s_bdev, *KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read);
+    bytes_read = read_file(sb->s_bdev, KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read);
     up_read(KMCSFS->op_lock);
     if (!bytes_read)
     {
@@ -229,7 +231,7 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
         }
     }
 
-    bytes_write = write_file(sb->s_bdev, *KMCSFS, buf, pos, len, index, inode->i_size, &bytes_to_write, false);
+    bytes_write = write_file(sb->s_bdev, KMCSFS, buf, pos, len, index, inode->i_size, &bytes_to_write, false);
     if (!bytes_write)
     {
         /* successfully wrote data */
@@ -240,7 +242,7 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
     *ppos = pos;
 
     unsigned long long time = current_time(inode).tv_sec;
-    chtime(index, time, 3, *KMCSFS);
+    chtime(index, time, 3, KMCSFS);
     inode->i_mtime_sec = time;
     up_write(KMCSFS->op_lock);
 

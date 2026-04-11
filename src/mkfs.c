@@ -1,3 +1,5 @@
+// Copyright (c) Anthony Kerr 2026-
+
 #include <fcntl.h>
 #include <linux/fs.h>
 #include <stdint.h>

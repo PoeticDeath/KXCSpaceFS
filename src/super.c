@@ -1,3 +1,5 @@
+// Copyright (c) Anthony Kerr 2026-
+
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/buffer_head.h>
@@ -32,8 +34,8 @@ static void kxcspacefs_put_super(struct super_block* sb)
         vfree(KMCSFS->table);
         vfree(KMCSFS->tablestr);
 		vfree(KMCSFS->dict);
-		vfree(KMCSFS->readbuf);
-		vfree(KMCSFS->writebuf);
+		kfree(KMCSFS->readbuf);
+		kfree(KMCSFS->writebuf);
         vfree(KMCSFS->readbuflock);
         vfree(KMCSFS->op_lock);
         vfree(KMCSFS);
@@ -56,7 +58,7 @@ static int kxcspacefs_sync_fs(struct super_block* sb, int wait)
 				UNICODE_STRING* fn = KMCSFS->dict[i].inode->i_private;
 				if (fn)
 				{
-					generic_file_fsync(&file, 0, get_file_size(get_filename_index(*fn, KMCSFS), *KMCSFS), false);
+					generic_file_fsync(&file, 0, get_file_size(get_filename_index(*fn, KMCSFS), KMCSFS), false);
 				}
 			}
 		}
@@ -131,10 +133,19 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
         ret = -ENOMEM;
         goto free_kmcsfs;
     }
+	char* tmp = kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
+	if (!tmp)
+	{
+		ret = -ENOMEM;
+		vfree(KMCSFS->table);
+		goto free_kmcsfs;
+	}
 	for (unsigned long long i = 0; i < KMCSFS->extratablesize; i += KMCSFS->sectorsize)
 	{
-    	sync_read_phys(i, KMCSFS->sectorsize, KMCSFS->table + i, sb->s_bdev);
+    	sync_read_phys(i, KMCSFS->sectorsize, tmp, sb->s_bdev);
+		memmove(KMCSFS->table + i, tmp, KMCSFS->sectorsize);
 	}
+	kfree(tmp);
     if (!memcmp(bh->b_data, KMCSFS->table, 512))
     {
         KMCSFS->filenamesend = 5;
@@ -204,7 +215,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 				goto free_kmcsfs_table;
 			}
 
-			KMCSFS->readbuf = vmalloc(KMCSFS->sectorsize);
+			KMCSFS->readbuf = kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
 			if (!KMCSFS->readbuf)
 			{
 				pr_err("out of memory\n");
@@ -213,13 +224,13 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 				found = false;
 				goto free_kmcsfs_table;
 			}
-			KMCSFS->writebuf = vmalloc(KMCSFS->sectorsize);
+			KMCSFS->writebuf = kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
 			if (!KMCSFS->writebuf)
 			{
 				pr_err("out of memory\n");
 				vfree(KMCSFS->tablestr);
 				vfree(KMCSFS->dict);
-				vfree(KMCSFS->readbuf);
+				kfree(KMCSFS->readbuf);
 				found = false;
 				goto free_kmcsfs_table;
 			}
@@ -229,8 +240,8 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 				pr_err("out of memory\n");
 				vfree(KMCSFS->tablestr);
 				vfree(KMCSFS->dict);
-				vfree(KMCSFS->readbuf);
-				vfree(KMCSFS->writebuf);
+				kfree(KMCSFS->readbuf);
+				kfree(KMCSFS->writebuf);
 				found = false;
 				goto free_kmcsfs_table;
 			}
@@ -241,8 +252,8 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 				pr_err("out of memory\n");
 				vfree(KMCSFS->tablestr);
 				vfree(KMCSFS->dict);
-				vfree(KMCSFS->readbuf);
-				vfree(KMCSFS->writebuf);
+				kfree(KMCSFS->readbuf);
+				kfree(KMCSFS->writebuf);
                 vfree(KMCSFS->readbuflock);
 				found = false;
 				goto free_kmcsfs_table;
@@ -294,8 +305,8 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
             pr_err("out of memory\n");
             vfree(KMCSFS->tablestr);
 			vfree(KMCSFS->dict);
-			vfree(KMCSFS->readbuf);
-			vfree(KMCSFS->writebuf);
+			kfree(KMCSFS->readbuf);
+			kfree(KMCSFS->writebuf);
             vfree(KMCSFS->readbuflock);
             vfree(KMCSFS->op_lock);
             ret = -ENOMEM;
@@ -325,8 +336,8 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
         pr_err("out of memory\n");
         vfree(KMCSFS->tablestr);
 		vfree(KMCSFS->dict);
-		vfree(KMCSFS->readbuf);
-		vfree(KMCSFS->writebuf);
+		kfree(KMCSFS->readbuf);
+		kfree(KMCSFS->writebuf);
         vfree(KMCSFS->readbuflock);
         vfree(KMCSFS->op_lock);
         ret = PTR_ERR(root_inode);
@@ -347,8 +358,8 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
         pr_err("out of memory\n");
         vfree(KMCSFS->tablestr);
 		vfree(KMCSFS->dict);
-		vfree(KMCSFS->readbuf);
-		vfree(KMCSFS->writebuf);
+		kfree(KMCSFS->readbuf);
+		kfree(KMCSFS->writebuf);
         vfree(KMCSFS->readbuflock);
         vfree(KMCSFS->op_lock);
         ret = -ENOMEM;
@@ -356,9 +367,9 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
     }
 
 	unsigned long long index = get_filename_index(root_fn, KMCSFS);
-	root_inode->i_gid.val = chgid(index, 0, *KMCSFS, false);
-	root_inode->i_uid.val = chuid(index, 0, *KMCSFS, false);
-	root_inode->i_mode = chmode(index, 0, *KMCSFS);
+	root_inode->i_gid.val = chgid(index, 0, KMCSFS, false);
+	root_inode->i_uid.val = chuid(index, 0, KMCSFS, false);
+	root_inode->i_mode = chmode(index, 0, KMCSFS);
 
     return 0;
 

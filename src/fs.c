@@ -1,3 +1,5 @@
+// Copyright (c) Anthony Kerr 2026-
+
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/fs.h>

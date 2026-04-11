@@ -1,3 +1,5 @@
+# Copyright (c) Anthony Kerr 2026-
+
 obj-m += kxcspacefs.o
 kxcspacefs-objs := fs.o super.o inode.o file.o dir.o Sha3.o Dict.o CSpaceFS.o
 

@@ -1,3 +1,5 @@
+// Copyright (c) Anthony Kerr 2026-
+
 #pragma once
 
 #include "Dict.h"

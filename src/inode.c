@@ -1,3 +1,5 @@
+// Copyright (c) Anthony Kerr 2026-
+
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/buffer_head.h>
@@ -98,25 +100,25 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     inode->i_sb = sb;
     inode->i_op = &kxcspacefs_inode_ops;
 
-    inode->i_mode = chmode(index, 0, *KMCSFS);
-    i_uid_write(inode, chuid(index, 0, *KMCSFS, false));
-    i_gid_write(inode, chgid(index, 0, *KMCSFS, false));
-    inode->i_size = get_file_size(index, *KMCSFS);
+    inode->i_mode = chmode(index, 0, KMCSFS);
+    i_uid_write(inode, chuid(index, 0, KMCSFS, false));
+    i_gid_write(inode, chgid(index, 0, KMCSFS, false));
+    inode->i_size = get_file_size(index, KMCSFS);
 
 #if KXCSPACEFS_AT_LEAST(6, 6, 0)
-    inode_set_ctime(inode, (time64_t) chtime(index, 0, 4, *KMCSFS), 0);
+    inode_set_ctime(inode, (time64_t) chtime(index, 0, 4, KMCSFS), 0);
 #else
-    inode->i_ctime.tv_sec = (time64_t) chtime(index, 0, 4, *KMCSFS);
+    inode->i_ctime.tv_sec = (time64_t) chtime(index, 0, 4, KMCSFS);
     inode->i_ctime.tv_nsec = 0;
 #endif
 
 #if KXCSPACEFS_AT_LEAST(6, 7, 0)
-    inode_set_atime(inode, (time64_t) chtime(index, 0, 0, *KMCSFS), 0);
-    inode_set_mtime(inode, (time64_t) chtime(index, 0, 2, *KMCSFS), 0);
+    inode_set_atime(inode, (time64_t) chtime(index, 0, 0, KMCSFS), 0);
+    inode_set_mtime(inode, (time64_t) chtime(index, 0, 2, KMCSFS), 0);
 #else
-    inode->i_atime.tv_sec = (time64_t) chtime(index, 0, 0, *KMCSFS);
+    inode->i_atime.tv_sec = (time64_t) chtime(index, 0, 0, KMCSFS);
     inode->i_atime.tv_nsec = 0;
-    inode->i_mtime.tv_sec = (time64_t) chtime(index, 0, 2, *KMCSFS);
+    inode->i_mtime.tv_sec = (time64_t) chtime(index, 0, 2, KMCSFS);
     inode->i_mtime.tv_nsec = 0;
 #endif
 
@@ -148,7 +150,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         unsigned long long bytes_read = 0;
         down_read(KMCSFS->op_lock);
         char buf[sizeof(dev_t)] = {0};
-        read_file(sb->s_bdev, *KMCSFS, buf, 0, sizeof(dev_t), index, &bytes_read);
+        read_file(sb->s_bdev, KMCSFS, buf, 0, sizeof(dev_t), index, &bytes_read);
         memmove(&inode->i_rdev, buf, sizeof(dev_t));
         up_read(KMCSFS->op_lock);
         init_special_inode(inode, inode->i_mode, inode->i_rdev);
@@ -206,7 +208,7 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
 
     down_write(KMCSFS->op_lock);
     unsigned long long time = current_time(dir).tv_sec;
-    chtime(get_filename_index(*pfn, KMCSFS), time, 1, *KMCSFS);
+    chtime(get_filename_index(*pfn, KMCSFS), time, 1, KMCSFS);
     dir->i_atime_sec = time;
     up_write(KMCSFS->op_lock);
 
@@ -267,8 +269,8 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     down_write(KMCSFS->op_lock);
     unsigned long long time = current_time(dir).tv_sec;
     unsigned long long dir_index = get_filename_index(*pfn, KMCSFS);
-    chtime(dir_index, time, 1, *KMCSFS);
-    chtime(dir_index, time, 3, *KMCSFS);
+    chtime(dir_index, time, 1, KMCSFS);
+    chtime(dir_index, time, 3, KMCSFS);
     dir->i_atime_sec = time;
     dir->i_mtime_sec = time;
     up_write(KMCSFS->op_lock);
@@ -332,8 +334,8 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
 
     unsigned long long time = current_time(dir).tv_sec;
     unsigned long long dir_index = get_filename_index(*pfn, KMCSFS);
-    chtime(dir_index, time, 1, *KMCSFS);
-    chtime(dir_index, time, 3, *KMCSFS);
+    chtime(dir_index, time, 1, KMCSFS);
+    chtime(dir_index, time, 3, KMCSFS);
     dir->i_atime_sec = time;
     dir->i_mtime_sec = time;
     up_write(KMCSFS->op_lock);
@@ -424,12 +426,12 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
         unsigned long long time = current_time(old_dir).tv_sec;
         unsigned long long old_dir_index = get_filename_index(*olddir, KMCSFS);
         unsigned long long new_dir_index = get_filename_index(*newdir, KMCSFS);
-        chtime(old_dir_index, time, 1, *KMCSFS);
-        chtime(old_dir_index, time, 3, *KMCSFS);
+        chtime(old_dir_index, time, 1, KMCSFS);
+        chtime(old_dir_index, time, 3, KMCSFS);
         old_dir->i_atime_sec = time;
         old_dir->i_mtime_sec = time;
-        chtime(new_dir_index, time, 1, *KMCSFS);
-        chtime(new_dir_index, time, 3, *KMCSFS);
+        chtime(new_dir_index, time, 1, KMCSFS);
+        chtime(new_dir_index, time, 3, KMCSFS);
         new_dir->i_atime_sec = time;
         new_dir->i_mtime_sec = time;
         up_write(KMCSFS->op_lock);
@@ -460,37 +462,37 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
 
     if (iattr->ia_valid & ATTR_MODE)
     {
-        chmode(index, iattr->ia_mode, *KMCSFS);
+        chmode(index, iattr->ia_mode, KMCSFS);
         inode->i_mode = iattr->ia_mode;
     }
 
     if (iattr->ia_valid & ATTR_UID)
     {
-        chuid(index, iattr->ia_uid.val, *KMCSFS, true);
+        chuid(index, iattr->ia_uid.val, KMCSFS, true);
         inode->i_uid.val = iattr->ia_uid.val;
     }
 
     if (iattr->ia_valid & ATTR_GID)
     {
-        chgid(index, iattr->ia_gid.val, *KMCSFS, true);
+        chgid(index, iattr->ia_gid.val, KMCSFS, true);
         inode->i_gid.val = iattr->ia_gid.val;
     }
 
     if (iattr->ia_valid & ATTR_ATIME || iattr->ia_valid & ATTR_ATIME_SET)
     {
-        chtime(index, iattr->ia_atime.tv_sec, 1, *KMCSFS);
+        chtime(index, iattr->ia_atime.tv_sec, 1, KMCSFS);
         inode->i_atime_sec = iattr->ia_atime.tv_sec;
     }
 
     if (iattr->ia_valid & ATTR_MTIME || iattr->ia_valid & ATTR_MTIME_SET)
     {
-        chtime(index, iattr->ia_mtime.tv_sec, 3, *KMCSFS);
+        chtime(index, iattr->ia_mtime.tv_sec, 3, KMCSFS);
         inode->i_mtime_sec = iattr->ia_mtime.tv_sec;
     }
 
 	if (S_ISREG(inode->i_mode) && (iattr->ia_valid & ATTR_SIZE))
     {
-        unsigned long long size = get_file_size(index, *KMCSFS);
+        unsigned long long size = get_file_size(index, KMCSFS);
 		if (size != iattr->ia_size)
 		{
             if (size < iattr->ia_size)
@@ -505,7 +507,7 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
             {
                 dealloc(KMCSFS, index, size, iattr->ia_size);
             }
-            inode->i_size = get_file_size(index, *KMCSFS);
+            inode->i_size = get_file_size(index, KMCSFS);
             inode->i_blocks = (inode->i_size + 511) / 512;
         }
 	}
@@ -532,9 +534,9 @@ static int kxcspacefs_fiemap(struct inode* inode, struct fiemap_extent_info* fie
 
     down_read(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
-    unsigned long long maxsize = get_file_size(index, *KMCSFS);
+    unsigned long long maxsize = get_file_size(index, KMCSFS);
     maxsize -= maxsize % KMCSFS->sectorsize;
-    unsigned long long loc = get_strloc(index, *KMCSFS);
+    unsigned long long loc = get_strloc(index, KMCSFS);
 
 	bool notzero = false;
 	bool multisector = false;
@@ -661,7 +663,7 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
         unsigned long long bytes_written = 0;
         char buf[sizeof(dev_t)] = {0};
         memmove(buf, &dev, sizeof(dev_t));
-        ret = write_file(sb->s_bdev, *KMCSFS, buf, 0, sizeof(dev_t), index, dentry->d_inode->i_size, &bytes_written, true);
+        ret = write_file(sb->s_bdev, KMCSFS, buf, 0, sizeof(dev_t), index, dentry->d_inode->i_size, &bytes_written, true);
     }
     up_write(KMCSFS->op_lock);
     init_special_inode(dentry->d_inode, mode, dev);
@@ -757,7 +759,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
         vfree(fn.Buffer);
         return -ENOSPC;
     }
-    write_file(sb->s_bdev, *KMCSFS, symname, 0, l, index, inode->i_size, &bytes_written, true);
+    write_file(sb->s_bdev, KMCSFS, symname, 0, l, index, inode->i_size, &bytes_written, true);
     up_write(KMCSFS->op_lock);
     vfree(fn.Buffer);
     return 0;
@@ -777,7 +779,7 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     
     unsigned long long bytes_read = 0;
     down_read(KMCSFS->op_lock);
-    int ret = read_file(sb->s_bdev, *KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read);
+    int ret = read_file(sb->s_bdev, KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read);
     up_read(KMCSFS->op_lock);
     if (IS_ERR(ERR_PTR(ret)))
     {
