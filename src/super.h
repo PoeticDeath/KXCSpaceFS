@@ -14,7 +14,8 @@
 #define KXCSPACEFS_AT_LEAST(major, minor, rev) LINUX_VERSION_CODE >= KERNEL_VERSION(major, minor, rev)
 
 /* superblock functions */
-int kxcspacefs_fill_super(struct super_block *sb, void *data, int silent);
+int kxcspacefs_sync_fs(struct super_block* sb, int wait);
+int kxcspacefs_fill_super(struct super_block *sb, void* data, int silent);
 void kxcspacefs_kill_sb(struct super_block* sb);
 
 /* inode functions */

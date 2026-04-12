@@ -42,7 +42,7 @@ static void kxcspacefs_put_super(struct super_block* sb)
     }
 }
 
-static int kxcspacefs_sync_fs(struct super_block* sb, int wait)
+int kxcspacefs_sync_fs(struct super_block* sb, int wait)
 {
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
@@ -55,11 +55,7 @@ static int kxcspacefs_sync_fs(struct super_block* sb, int wait)
 			file.f_mapping = file.f_inode->i_mapping;
 			if (file.f_mapping)
 			{
-				UNICODE_STRING* fn = KMCSFS->dict[i].inode->i_private;
-				if (fn)
-				{
-					generic_file_fsync(&file, 0, get_file_size(get_filename_index(*fn, KMCSFS), KMCSFS), false);
-				}
+				filemap_write_and_wait(file.f_mapping);
 			}
 		}
 	}

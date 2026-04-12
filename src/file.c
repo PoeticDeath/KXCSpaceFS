@@ -428,6 +428,12 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
     if (!bh)
     {
         bh = create_empty_buffers(*foliop, PAGE_SIZE, 0);
+        loff_t toff = pos - pos % PAGE_SIZE;
+        if ((toff != pos) || (len < PAGE_SIZE))
+        {
+            kxcspacefs_sync_fs(sb, 1);
+            kxcspacefs_read(kiocb->ki_filp, bh->b_data, PAGE_SIZE, &toff);
+        }
     }
     return 0;
 }
