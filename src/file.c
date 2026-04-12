@@ -330,10 +330,6 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
     struct file file;
     struct folio* folio = NULL;
 	struct blk_plug plug;
-    char* buf = NULL;
-    unsigned long long buflen = 0;
-    unsigned long long bufstartpos = 0;
-    unsigned long long buflastpos = 0;
 	int error = 0;
 	blk_start_plug(&plug);
 	while ((folio = writeback_iter(mapping, wbc, folio, &error)))
@@ -341,8 +337,6 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
         if (folio)
         {
             file.f_inode = folio_inode(folio);
-            struct super_block* sb = file.f_inode->i_sb;
-            KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
             char* nbuf = kmap_local_folio(folio, 0);
             loff_t pos = folio_pos(folio);
             size_t len = folio_size(folio);
@@ -350,42 +344,10 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             {
                 len = folio_inode(folio)->i_size - pos;
             }
-            if (!buf)
-            {
-                buf = vmalloc(KMCSFS->sectorsize);
-                if (!buf)
-                {
-                    blk_finish_plug(&plug);
-                    return -ENOMEM;
-                }
-                bufstartpos = pos;
-                buflastpos = pos;
-            }
-            else
-            {
-                if ((buflastpos != pos - folio_size(folio)) || (buflen >= KMCSFS->sectorsize))
-                {
-                    kxcspacefs_write(&file, buf, buflen, &bufstartpos);
-                    memset(buf, 0, KMCSFS->sectorsize);
-                    bufstartpos = pos;
-                    buflastpos = pos;
-                    buflen = 0;
-                }
-                else
-                {
-                    buflastpos = pos;
-                }
-            }
-            memmove(buf + buflen, nbuf, len);
-            buflen += len;
+            kxcspacefs_write(&file, nbuf, len, &pos);
             kunmap_local(nbuf);
             folio_unlock(folio);
         }
-    }
-    if (buf)
-    {
-        kxcspacefs_write(&file, buf, buflen, &bufstartpos);
-        vfree(buf);
     }
 	blk_finish_plug(&plug);
 	return error;
