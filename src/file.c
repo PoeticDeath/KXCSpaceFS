@@ -449,19 +449,7 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
 static int kxcspacefs_write_end(const struct kiocb* kiocb, struct address_space* mapping, loff_t pos, unsigned len, unsigned copied, struct folio* folio, void* fsdata)
 {
     copied = block_write_end(pos, len, copied, folio);
-
-    struct file file;
-    file.f_inode = folio_inode(folio);
-    char* nbuf = kmap_local_folio(folio, 0);
-    loff_t bpos = folio_pos(folio);
-    size_t blen = folio_size(folio);
-    if (bpos + blen > folio_inode(folio)->i_size)
-    {
-        blen = folio_inode(folio)->i_size - bpos;
-    }
-    kxcspacefs_write(&file, nbuf, blen, &bpos);
-    kunmap_local(nbuf);
-
+    folio_mark_dirty(folio);
     folio_unlock(folio);
 	folio_put(folio);
     return copied;
