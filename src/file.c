@@ -341,6 +341,8 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
         if (folio)
         {
             file.f_inode = folio_inode(folio);
+            struct super_block* sb = file.f_inode->i_sb;
+            KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
             char* nbuf = kmap_local_folio(folio, 0);
             loff_t pos = folio_pos(folio);
             size_t len = folio_size(folio);
@@ -350,7 +352,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             }
             if (!buf)
             {
-                buf = vmalloc(len);
+                buf = vmalloc(KMCSFS->sectorsize);
                 if (!buf)
                 {
                     blk_finish_plug(&plug);
@@ -361,32 +363,16 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             }
             else
             {
-                struct super_block* sb = file.f_inode->i_sb;
-                KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
                 if ((buflastpos != pos - folio_size(folio)) || (buflen >= KMCSFS->sectorsize))
                 {
                     kxcspacefs_write(&file, buf, buflen, &bufstartpos);
-                    vfree(buf);
-                    buf = vmalloc(len);
-                    if (!buf)
-                    {
-                        blk_finish_plug(&plug);
-                        return -ENOMEM;
-                    }
+                    memset(buf, 0, KMCSFS->sectorsize);
                     bufstartpos = pos;
                     buflastpos = pos;
                     buflen = 0;
                 }
                 else
                 {
-                    char* tbuf = vmalloc(buflen + len);
-                    if (!tbuf)
-                    {
-                        break;
-                    }
-                    memmove(tbuf, buf, buflen);
-                    vfree(buf);
-                    buf = tbuf;
                     buflastpos = pos;
                 }
             }
