@@ -355,6 +355,8 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
                 buf = vmalloc(KMCSFS->sectorsize);
                 if (!buf)
                 {
+                    kunmap_local(nbuf);
+                    folio_unlock(folio);
                     blk_finish_plug(&plug);
                     return -ENOMEM;
                 }
