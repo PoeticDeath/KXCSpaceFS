@@ -649,6 +649,12 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
     return inode->i_size;
 }
 
+int kxcspacefs_release(struct inode* inode, struct file* file)
+{
+    filemap_write_and_wait(inode->i_mapping);
+    return 0;
+}
+
 const struct address_space_operations kxcspacefs_aops =
 {
 	.read_folio = kxcspacefs_read_folio,
@@ -678,6 +684,7 @@ const struct file_operations kxcspacefs_file_ops =
     .mmap = generic_file_mmap,
 #endif
     .open = kxcspacefs_open,
+    .release = kxcspacefs_release,
     .llseek = generic_file_llseek,
     .fsync = generic_file_fsync,
     .fallocate = kxcspacefs_fallocate,
