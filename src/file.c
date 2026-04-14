@@ -664,6 +664,7 @@ const struct address_space_operations kxcspacefs_aops =
 const struct file_operations kxcspacefs_file_ops =
 {
     .owner = THIS_MODULE,
+    .fop_flags = FOP_MMAP_SYNC | FOP_BUFFER_RASYNC | FOP_DONTCACHE,
 #if KXCSPACEFS_AT_LEAST(3, 16, 0)
     .read_iter = generic_file_read_iter,
     .write_iter = kxcspacefs_file_write_iter,
