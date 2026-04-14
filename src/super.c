@@ -61,6 +61,7 @@ int kxcspacefs_sync_fs(struct super_block* sb, int wait)
 	}
 
 	sync_blockdev(sb->s_bdev);
+	invalidate_bdev(sb->s_bdev);
 
     return 0;
 }
