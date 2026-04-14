@@ -357,6 +357,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
                 {
                     kunmap_local(nbuf);
                     folio_unlock(folio);
+                    folio_put(folio);
                     blk_finish_plug(&plug);
                     return -ENOMEM;
                 }
@@ -381,7 +382,9 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             memmove(buf + buflen, nbuf, len);
             buflen += len;
             kunmap_local(nbuf);
+            folio_clear_dirty(folio);
             folio_unlock(folio);
+            folio_put(folio);
         }
     }
     if (buf)
@@ -445,7 +448,6 @@ static int kxcspacefs_write_end(const struct kiocb* kiocb, struct address_space*
     copied = block_write_end(pos, len, copied, folio);
     folio_mark_dirty(folio);
     folio_unlock(folio);
-	folio_put(folio);
     return copied;
 }
 
@@ -655,6 +657,8 @@ const struct address_space_operations kxcspacefs_aops =
 	.write_end = kxcspacefs_write_end,
     .dirty_folio = filemap_dirty_folio,
     .bmap = kxcspacefs_bmap,
+    .invalidate_folio = block_invalidate_folio,
+    .migrate_folio = buffer_migrate_folio,
 };
 
 const struct file_operations kxcspacefs_file_ops =
