@@ -15,6 +15,36 @@
 #include "Dict.h"
 #include "cspacefs.h"
 
+void folio_buffers_set_uptodate(struct folio* folio)
+{
+    struct buffer_head* head = folio_buffers(folio);
+    if (head)
+    {
+	    struct buffer_head* bh;
+
+	    bh = head;
+	    do {
+		    set_buffer_uptodate(bh);
+		    bh = bh->b_this_page;
+	    } while (bh != head);
+    }
+}
+
+void folio_buffers_clear_dirty(struct folio* folio)
+{
+    struct buffer_head* head = folio_buffers(folio);
+    if (head)
+    {
+	    struct buffer_head* bh;
+
+	    bh = head;
+	    do {
+		    clear_buffer_dirty(bh);
+		    bh = bh->b_this_page;
+	    } while (bh != head);
+    }
+}
+
 static int kxcspacefs_getfrag_block(struct inode* inode, sector_t fragment, struct buffer_head* bh_result, int create)
 {
     struct super_block* sb = inode->i_sb;
@@ -304,6 +334,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
                     char* nbuf = kmap_local_folio(nfolio, 0);
                     memmove(nbuf, buf + i * PAGE_SIZE, PAGE_SIZE);
                     folio_mark_uptodate(nfolio);
+                    folio_buffers_set_uptodate(nfolio);
                     kunmap_local(nbuf);
                 }
             }
@@ -315,6 +346,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
                 char* nbuf = kmap_local_folio(folio, 0);
                 memmove(nbuf, buf, PAGE_SIZE);
                 folio_mark_uptodate(folio);
+                folio_buffers_set_uptodate(folio);
                 kunmap_local(nbuf);
             }
         }
@@ -383,6 +415,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             buflen += len;
             kunmap_local(nbuf);
             folio_clear_dirty(folio);
+            folio_buffers_clear_dirty(folio);
             folio_unlock(folio);
             folio_put(folio);
         }
