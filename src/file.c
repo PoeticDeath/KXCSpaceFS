@@ -479,7 +479,7 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
 static int kxcspacefs_write_end(const struct kiocb* kiocb, struct address_space* mapping, loff_t pos, unsigned len, unsigned copied, struct folio* folio, void* fsdata)
 {
     copied = block_write_end(pos, len, copied, folio);
-    folio_mark_dirty(folio);
+    block_dirty_folio(mapping, folio);
     folio_unlock(folio);
     return copied;
 }
