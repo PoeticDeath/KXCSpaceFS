@@ -312,7 +312,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
             if (nfolio)
             {   
                 loff_t nextpos = folio_pos(nfolio);
-                if ((nextpos == lastpos + PAGE_SIZE) && (pagesrem < KMCSFS->sectorsize / PAGE_SIZE))
+                if ((nextpos == lastpos + PAGE_SIZE) && (nextpos / KMCSFS->sectorsize == (lastpos + PAGE_SIZE) / KMCSFS->sectorsize) && (pagesrem < KMCSFS->sectorsize / PAGE_SIZE))
                 {
                     lastpos = nextpos;
                     pagesrem++;
