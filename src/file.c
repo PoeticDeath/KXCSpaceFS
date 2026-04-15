@@ -304,7 +304,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
         }
 
         unsigned long pagesrem = 0;
-        loff_t lastpos = pos;
+        loff_t lastpos = pos - PAGE_SIZE;
 
         for (unsigned long i = index; i < mapping->nrpages; i++)
         {
