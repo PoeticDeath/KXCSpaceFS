@@ -284,8 +284,11 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
 {
     if (!folio_test_uptodate(folio))
     {
+        struct super_block* sb = folio_inode(folio)->i_sb;
+        KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
         struct address_space* mapping = folio_mapping(folio);
         loff_t pos = folio_pos(folio);
+        pos -= pos % folio_size(folio);
         unsigned long index = 0;
 
         for (; index < mapping->nrpages; index++)
@@ -301,7 +304,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
         }
 
         unsigned long pagesrem = 0;
-        loff_t lastpos = pos - PAGE_SIZE;
+        loff_t lastpos = pos;
 
         for (unsigned long i = index; i < mapping->nrpages; i++)
         {
@@ -309,7 +312,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
             if (nfolio)
             {   
                 loff_t nextpos = folio_pos(nfolio);
-                if (nextpos == lastpos + PAGE_SIZE)
+                if ((nextpos == lastpos + PAGE_SIZE) && (pagesrem < KMCSFS->sectorsize / PAGE_SIZE))
                 {
                     lastpos = nextpos;
                     pagesrem++;
@@ -323,6 +326,11 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
 
         size_t len = max(pagesrem, 1) * PAGE_SIZE;
         char* buf = vmalloc(len);
+        if (!buf)
+        {
+            folio_unlock(folio);
+            return -ENOMEM;
+        }
         kxcspacefs_read(file, buf, len, &pos);
 
         if (pagesrem)
