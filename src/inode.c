@@ -771,14 +771,15 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     UNICODE_STRING* fn;
     fn = inode->i_private;
+    down_read(KMCSFS->op_lock);
     uint8_t* data = kzalloc(inode->i_size, GFP_KERNEL);
     if (!data)
     {
+        up_read(KMCSFS->op_lock);
         return ERR_PTR(-ENOMEM);
     }
     
     unsigned long long bytes_read = 0;
-    down_read(KMCSFS->op_lock);
     int ret = read_file(sb->s_bdev, KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read);
     up_read(KMCSFS->op_lock);
     if (IS_ERR(ERR_PTR(ret)))

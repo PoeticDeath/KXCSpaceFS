@@ -185,17 +185,17 @@ static int kxcspacefs_open(struct inode* inode, struct file* filp)
     bool rdwr = (filp->f_flags & O_RDWR);
     bool trunc = (filp->f_flags & O_TRUNC);
 
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
+    down_write(KMCSFS->op_lock);
     if ((wronly || rdwr) && trunc && inode->i_size)
     {
-        KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
         UNICODE_STRING* fn = inode->i_private;
-        down_write(KMCSFS->op_lock);
         dealloc(KMCSFS, get_filename_index(*fn, KMCSFS), inode->i_size, 0);
         /* Update inode metadata */
         inode->i_size = 0;
         inode->i_blocks = 0;
-        up_write(KMCSFS->op_lock);
     }
+    up_write(KMCSFS->op_lock);
     return 0;
 }
 
@@ -208,8 +208,10 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
     ssize_t bytes_read = 0;
     loff_t pos = *ppos;
 
+    down_read(KMCSFS->op_lock);
     if (pos > inode->i_size)
     {
+        up_read(KMCSFS->op_lock);
         return 0;
     }
 
@@ -219,7 +221,6 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
     }
 
     UNICODE_STRING* fn = inode->i_private;
-    down_read(KMCSFS->op_lock);
     bytes_read = read_file(sb->s_bdev, KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read);
     up_read(KMCSFS->op_lock);
     if (!bytes_read)
@@ -444,9 +445,9 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
     UNICODE_STRING* fn = inode->i_private;
 
     unsigned long long plen = pos + len;
+    down_write(KMCSFS->op_lock);
     if (plen > inode->i_size)
     {
-        down_write(KMCSFS->op_lock);
         unsigned long long index = get_filename_index(*fn, KMCSFS);
         if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
         {
@@ -458,8 +459,8 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
             up_write(KMCSFS->op_lock);
             return -ENOSPC;
         }
-        up_write(KMCSFS->op_lock);
     }
+    up_write(KMCSFS->op_lock);
 
 	*foliop = __filemap_get_folio(mapping, pos / PAGE_SIZE, FGP_WRITEBEGIN, mapping_gfp_mask(mapping));
     struct buffer_head* bh = folio_buffers(*foliop);
@@ -662,9 +663,9 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
     UNICODE_STRING* fn = inode->i_private;
 
     unsigned long long plen = offset + len;
+    down_write(KMCSFS->op_lock);
     if (plen > inode->i_size)
     {
-        down_write(KMCSFS->op_lock);
         unsigned long long index = get_filename_index(*fn, KMCSFS);
         if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
         {
@@ -676,8 +677,8 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
             up_write(KMCSFS->op_lock);
             return -ENOSPC;
         }
-        up_write(KMCSFS->op_lock);
     }
+    up_write(KMCSFS->op_lock);
 
     return inode->i_size;
 }
