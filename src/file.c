@@ -191,10 +191,10 @@ static int kxcspacefs_open(struct inode* inode, struct file* filp)
         UNICODE_STRING* fn = inode->i_private;
         down_write(KMCSFS->op_lock);
         dealloc(KMCSFS, get_filename_index(*fn, KMCSFS), inode->i_size, 0);
-        up_write(KMCSFS->op_lock);
         /* Update inode metadata */
         inode->i_size = 0;
         inode->i_blocks = 0;
+        up_write(KMCSFS->op_lock);
     }
     return 0;
 }
