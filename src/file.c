@@ -311,15 +311,18 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
             struct folio* nfolio = xa_load(&mapping->i_pages, i);
             if (nfolio)
             {   
-                loff_t nextpos = folio_pos(nfolio);
-                if ((nextpos == lastpos + PAGE_SIZE) && (nextpos / KMCSFS->sectorsize == (lastpos + PAGE_SIZE) / KMCSFS->sectorsize) && (pagesrem < KMCSFS->sectorsize / PAGE_SIZE))
+                if (!folio_test_uptodate(nfolio))
                 {
-                    lastpos = nextpos;
-                    pagesrem++;
-                }
-                else
-                {
-                    break;
+                    loff_t nextpos = folio_pos(nfolio);
+                    if ((nextpos == lastpos + PAGE_SIZE) && (nextpos / KMCSFS->sectorsize == (lastpos + PAGE_SIZE) / KMCSFS->sectorsize) && (pagesrem < KMCSFS->sectorsize / PAGE_SIZE))
+                    {
+                        lastpos = nextpos;
+                        pagesrem++;
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
             }
         }
