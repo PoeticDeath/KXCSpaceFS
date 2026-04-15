@@ -379,10 +379,12 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             char* nbuf = kmap_local_folio(folio, 0);
             loff_t pos = folio_pos(folio);
             size_t len = folio_size(folio);
+            down_read(KMCSFS->op_lock);
             if (pos + len > folio_inode(folio)->i_size)
             {
                 len = folio_inode(folio)->i_size - pos;
             }
+            up_read(KMCSFS->op_lock);
             if (!buf)
             {
                 buf = vmalloc(KMCSFS->sectorsize);
