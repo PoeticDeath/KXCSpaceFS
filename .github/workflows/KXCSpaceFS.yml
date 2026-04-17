@@ -41,6 +41,7 @@ jobs:
         name: mkfs.KXCSpaceFS
         path: /home/runner/work/KXCSpaceFS/KXCSpaceFS/build/mkfs.kxcspacefs
     - name: Upload KXCSpaceFS.ko
+      if: success() || failure()
       uses: actions/upload-artifact@v4
       with:
         name: KXCSpaceFS.ko
