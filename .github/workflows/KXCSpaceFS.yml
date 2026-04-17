@@ -21,7 +21,7 @@ jobs:
         sudo add-apt-repository "deb http://archive.ubuntu.com/ubuntu/ questing main universe restricted multiverse"
         sudo add-apt-repository "deb http://archive.ubuntu.com/ubuntu/ questing-updates main universe restricted multiverse"
         sudo apt-get update
-        sudo apt-get install -y gcc build-essential linux-image-6.17.0-8-generic linux-headers-6.17.0-8-generic
+        sudo apt-get install -y gcc build-essential linux-image-generic linux-headers-generic
     - name: Update Kernel Source
       run: |
         cd /lib/modules/$(uname -r)
