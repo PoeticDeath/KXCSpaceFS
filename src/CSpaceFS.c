@@ -1019,7 +1019,7 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	newtable[2] = (tablesize >> 16) & 0xff;
 	newtable[3] = (tablesize >> 8) & 0xff;
 	newtable[4] = tablesize & 0xff;
-	KMCSFS->extratablesize = sector_align(extratablesize, KMCSFS->sectorsize);
+	KMCSFS->extratablesize = extratablesize;
 	KMCSFS->tablesize = 1 + tablesize;
 
 	memmove(newtable + 5, newtablestren, (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2);
@@ -1066,10 +1066,6 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	chtime(KMCSFS->filecount, time, 3, KMCSFS);
 
 	KMCSFS->filecount++;
-	for (unsigned long long i = 0; i < KMCSFS->filenamesend + 2 + 35 * KMCSFS->filecount; i += KMCSFS->sectorsize)
-	{
-		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, KMCSFS);
-	}
 
 	return 0;
 }
@@ -1822,10 +1818,6 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 			KMCSFS->tableend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2;
 			vfree(KMCSFS->table);
 			KMCSFS->table = newtable;
-			for (unsigned long long i = 0; i < extratablesize; i += KMCSFS->sectorsize)
-			{
-				sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, KMCSFS);
-			}
 			return true;
 		}
 		return false;
@@ -1988,7 +1980,7 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 		vfree(newtablestr);
 		return -ENOMEM;
 	}
-	unsigned long long extratablesize = 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 35 * (KMCSFS->filecount - 1);
+	unsigned long long extratablesize = 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 35 * (KMCSFS->filecount - 1);
 	unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
 	newtable[0] = KMCSFS->table[0];
 	newtable[1] = (tablesize >> 24) & 0xff;
@@ -2003,10 +1995,6 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * (index + 1), 24 * (KMCSFS->filecount - index - 1));
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1), KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount, 11 * index);
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1) + 11 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount + 11 * (index + 1), 11 * (KMCSFS->filecount - index - 1));
-	for (unsigned long long i = 0; i < 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 35 * (KMCSFS->filecount - 1); i += KMCSFS->sectorsize)
-	{
-		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, KMCSFS);
-	}
 
 	if (dindex)
 	{
@@ -2096,11 +2084,6 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	KMCSFS->tablesize = 1 + tablesize;
 	vfree(KMCSFS->table);
 	KMCSFS->table = newtable;
-
-	for (unsigned long long i = 0; i < extratablesize; i += KMCSFS->sectorsize)
-	{
-		sync_write_phys(i, KMCSFS->sectorsize, newtable + i, bdev, KMCSFS);
-	}
 
 	return 0;
 }

@@ -60,6 +60,13 @@ int kxcspacefs_sync_fs(struct super_block* sb, int wait)
 		}
 	}
 
+	down_read(KMCSFS->op_lock);
+	for (unsigned long long i = 0; i < KMCSFS->extratablesize; i += KMCSFS->sectorsize)
+	{
+		sync_write_phys(i, KMCSFS->sectorsize, KMCSFS->table + i, sb->s_bdev, KMCSFS);
+	}
+	up_read(KMCSFS->op_lock);
+
 	sync_blockdev(sb->s_bdev);
 	invalidate_bdev(sb->s_bdev);
 
