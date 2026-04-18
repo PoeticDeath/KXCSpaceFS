@@ -289,19 +289,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
         struct address_space* mapping = folio_mapping(folio);
         loff_t pos = folio_pos(folio);
         pos -= pos % folio_size(folio);
-        unsigned long index = 0;
-
-        for (; index < mapping->nrpages; index++)
-        {
-            struct folio* nfolio = xa_load(&mapping->i_pages, index);
-            if (nfolio)
-            {
-                if (nfolio == folio)
-                {
-                    break;
-                }
-            }
-        }
+        unsigned long index = folio->index;
 
         unsigned long pagesrem = 0;
         loff_t lastpos = pos - PAGE_SIZE;
