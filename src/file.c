@@ -297,7 +297,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
         for (unsigned long i = index; i < mapping->nrpages; i++)
         {
             struct folio* nfolio = xa_load(&mapping->i_pages, i);
-            if (nfolio)
+            if (nfolio && virt_addr_valid(nfolio))
             {   
                 if (!folio_test_uptodate(nfolio))
                 {
