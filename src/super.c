@@ -50,10 +50,10 @@ int kxcspacefs_sync_fs(struct super_block* sb, int wait)
 	{
 		struct file file;
 		file.f_inode = KMCSFS->dict[i].inode;
-		if (file.f_inode)
+		if (file.f_inode && virt_addr_valid(file.f_inode))
 		{
 			file.f_mapping = file.f_inode->i_mapping;
-			if (file.f_mapping)
+			if (file.f_mapping && virt_addr_valid(file.f_mapping))
 			{
 				filemap_write_and_wait(file.f_mapping);
 			}
