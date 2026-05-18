@@ -11,6 +11,36 @@
 #include "cspacefs.h"
 #include "super.h"
 
+#if KXCSPACEFS_AT_LEAST(7, 0, 0)
+#include <linux/fs_context.h>
+
+static int kxcspacefs_get_tree(struct fs_context* fc)
+{
+	return get_tree_bdev(fc, kxcspacefs_fill_super);
+}
+
+static void kxcspacefs_fc_free(struct fs_context* fc)
+{
+    return;
+}
+
+static const struct fs_context_operations kxcspacefs_context_ops = {
+	.parse_param = NULL,
+	.get_tree = kxcspacefs_get_tree,
+	.reconfigure = NULL,
+	.free = kxcspacefs_fc_free,
+};
+
+int kxcspacefs_init_context(struct fs_context* fc)
+{
+	fc->ops = &kxcspacefs_context_ops;
+
+	/* i_version is always enabled now */
+	fc->sb_flags |= SB_I_VERSION;
+
+	return 0;
+}
+#else
 /* Mount a kxcspacefs partition */
 struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data)
 {
@@ -26,6 +56,7 @@ struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, con
 
     return dentry;
 }
+#endif
 
 /* Unmount a kxcspacefs partition */
 void kxcspacefs_kill_sb(struct super_block* sb)
@@ -38,7 +69,11 @@ void kxcspacefs_kill_sb(struct super_block* sb)
 static struct file_system_type kxcspacefs_file_system_type = {
     .owner = THIS_MODULE,
     .name = "KXCSpaceFS",
+#if KXCSPACEFS_AT_LEAST(7, 0, 0)
+    .init_fs_context = kxcspacefs_init_context,
+#else
     .mount = kxcspacefs_mount,
+#endif
     .kill_sb = kxcspacefs_kill_sb,
     .fs_flags = FS_REQUIRES_DEV,
     .next = NULL,

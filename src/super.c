@@ -87,7 +87,11 @@ static struct super_operations kxcspacefs_super_ops =
 };
 
 /* Fill the struct superblock from partition superblock */
+#if KXCSPACEFS_AT_LEAST(7, 0, 0)
+int kxcspacefs_fill_super(struct super_block* sb, struct fs_context* fc)
+#else
 int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
+#endif
 {
     struct buffer_head* bh = NULL;
     struct inode* root_inode = NULL;

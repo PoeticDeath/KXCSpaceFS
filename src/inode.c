@@ -62,7 +62,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     }
 
     /* If inode is in cache, clean it */
-    if (!(inode->i_state & I_NEW))
+    if (!(inode->i_state.__state & I_NEW))
     {
         UNICODE_STRING* fn = inode->i_private;
         if (fn->Length > sizeof(WCHAR))
@@ -140,7 +140,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     }
 
     /* Unlock the inode to make it usable, if not found in cache */
-    if (inode->i_state & I_NEW)
+    if (inode->i_state.__state & I_NEW)
     {
         unlock_new_inode(inode);
     }
