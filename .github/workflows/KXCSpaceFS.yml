@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Install dependencies
       run: |
         sudo add-apt-repository "deb http://archive.ubuntu.com/ubuntu/ questing main universe restricted multiverse"
@@ -36,13 +36,13 @@ jobs:
       run: make all -f src/Makefile
     - name: Upload mkfs.KXCSpaceFS
       if: success() || failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: mkfs.KXCSpaceFS
         path: /home/runner/work/KXCSpaceFS/KXCSpaceFS/build/mkfs.kxcspacefs
     - name: Upload KXCSpaceFS.ko
       if: success() || failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: KXCSpaceFS.ko
         path: /home/runner/work/KXCSpaceFS/KXCSpaceFS/build/kxcspacefs.ko
