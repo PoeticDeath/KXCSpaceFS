@@ -201,7 +201,7 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 			vfree(Filename);
 			return 0;
 		}
-		for (unsigned long long j = 0; j < filenamelen; j++)
+		for (unsigned long long j = 0; j < filenamelen + 1; j++)
 		{
 			if (!((incmp((table[tableend + dict[o].filenameloc + j] & 0xff), (Filename[j] & 0xff)) || (((table[tableend + dict[o].filenameloc + j] & 0xff) == *"/") && ((Filename[j] & 0xff) == *"\\")))))
 			{
@@ -214,7 +214,7 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 					filename[j] = table[tableend + dict[o].filenameloc + j] & 0xff;
 				}
 			}
-			if (j == filenamelen - 1 && ((table[tableend + dict[o].filenameloc + j + 1] & 0xff) == 255 || (table[tableend + dict[o].filenameloc + j + 1] & 0xff) == 42) && dict[o].hash == hash)
+			if (j == filenamelen && ((table[tableend + dict[o].filenameloc + j] & 0xff) == 255 || (table[tableend + dict[o].filenameloc + j] & 0xff) == 42) && dict[o].hash == hash)
 			{
 				vfree(Filename);
 				return o;
