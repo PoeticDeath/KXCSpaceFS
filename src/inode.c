@@ -339,6 +339,7 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
 
     down_write(KMCSFS->op_lock);
     int ret = delete_file(sb->s_bdev, KMCSFS, fn, get_filename_index(fn, KMCSFS));
+    vfree(fn.Buffer);
 
     unsigned long long time = current_time(dir).tv_sec;
     unsigned long long dir_index = get_filename_index(*pfn, KMCSFS);
