@@ -237,7 +237,11 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
  * creating a VFS inode object (in memory), and
  * attaching filesystem-specific information to that VFS inode.
  */
+#if KXCSPACEFS_AT_LEAST(6, 3, 0)
+static struct inode* kxcspacefs_new_inode(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, mode_t mode)
+#else
 static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dentry, mode_t mode)
+#endif
 {
     struct inode* inode;
     struct super_block* sb = dir->i_sb;
@@ -268,13 +272,22 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     down_read(KMCSFS->op_lock);
     inode = kxcspacefs_iget(sb, 0, &fn);
     up_read(KMCSFS->op_lock);
-    vfree(fn.Buffer);
     if (IS_ERR(inode))
     {
+        vfree(fn.Buffer);
         return inode;
     }
 
     down_write(KMCSFS->op_lock);
+
+    #if KXCSPACEFS_AT_LEAST(6, 3, 0)
+    inode_init_owner(id, inode, dir, mode);
+    unsigned long long index = get_filename_index(fn, KMCSFS);
+    chuid(index, inode->i_uid.val, KMCSFS, true);
+    chgid(index, inode->i_gid.val, KMCSFS, true);
+    #endif
+    vfree(fn.Buffer);
+
     unsigned long long time = current_time(dir).tv_sec;
     unsigned long long dir_index = get_filename_index(*pfn, KMCSFS);
     chtime(dir_index, time, 1, KMCSFS);
@@ -307,7 +320,11 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     }
 
     /* Get a new free inode */
+    #if KXCSPACEFS_AT_LEAST(6, 3, 0)
+    inode = kxcspacefs_new_inode(id, dir, dentry, mode);
+    #else
     inode = kxcspacefs_new_inode(dir, dentry, mode);
+    #endif
     if (IS_ERR(inode))
     {
         return PTR_ERR(inode);
@@ -745,7 +762,11 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
+    #if KXCSPACEFS_AT_LEAST(6, 3, 0)
+    struct inode* inode = kxcspacefs_new_inode(id, dir, dentry, S_IFLNK | S_IRWXUGO);
+    #else
     struct inode* inode = kxcspacefs_new_inode(dir, dentry, S_IFLNK | S_IRWXUGO);
+    #endif
     if (IS_ERR(inode))
     {
         vfree(fn.Buffer);
