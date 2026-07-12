@@ -2046,7 +2046,7 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn.Buffer, fn.Length / sizeof(WCHAR));
 	if (index && dindex)
 	{
-		loc = KMCSFS->tableend + KMCSFS->dict[dindex].filenameloc - 1;
+		loc = KMCSFS->tableend + KMCSFS->dict[dindex].filenameloc;
 	}
 
 	newtable[0] = KMCSFS->table[0];
@@ -2055,16 +2055,15 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	newtable[3] = (tablesize >> 8) & 0xff;
 	newtable[4] = tablesize & 0xff;
 	memmove(newtable + 5, KMCSFS->table + 5, loc - 5);
-	newtable[loc] = *"\xff";
 	for (unsigned long long i = 0; i < nfn.Length / sizeof(WCHAR); i++)
 	{
-		newtable[loc + i + 1] = nfn.Buffer[i] & 0xff;
-		if (newtable[loc + i + 1] == 92)
+		newtable[loc + i] = nfn.Buffer[i] & 0xff;
+		if (newtable[loc + i] == 92)
 		{
-			newtable[loc + i + 1] = 47;
+			newtable[loc + i] = 47;
 		}
 	}
-	memmove(newtable + loc + 1 + nfn.Length / sizeof(WCHAR), KMCSFS->table + loc + 1 + fn.Length / sizeof(WCHAR), KMCSFS->filenamesend - loc - 1 - fn.Length / sizeof(WCHAR) + 2 + 35 * KMCSFS->filecount);
+	memmove(newtable + loc + nfn.Length / sizeof(WCHAR), KMCSFS->table + loc + fn.Length / sizeof(WCHAR), KMCSFS->filenamesend - loc - fn.Length / sizeof(WCHAR) + 2 + 35 * KMCSFS->filecount);
 
 	if (dindex)
 	{
@@ -2080,6 +2079,68 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	}
 
 	KMCSFS->filenamesend = KMCSFS->filenamesend - fn.Length / sizeof(WCHAR) + nfn.Length / sizeof(WCHAR);
+	KMCSFS->extratablesize = extratablesize;
+	KMCSFS->tablesize = 1 + tablesize;
+	vfree(KMCSFS->table);
+	KMCSFS->table = newtable;
+
+	return 0;
+}
+
+int make_link(KMCSpaceFS* KMCSFS, UNICODE_STRING* target, UNICODE_STRING fn)
+{
+	unsigned long long extratablesize = KMCSFS->filenamesend + 2 + 35 * KMCSFS->filecount + fn.Length / sizeof(WCHAR) + 1;
+	unsigned long long tablesize = (extratablesize + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize - 1;
+
+	char* newtable = vmalloc(sector_align(extratablesize, KMCSFS->sectorsize));
+	if (!newtable)
+	{
+		pr_err("out of memory\n");
+		return -ENOMEM;
+	}
+	memset(newtable, 0, extratablesize);
+
+	if (!is_table_expandable(KMCSFS, extratablesize))
+	{
+		pr_err("table is not expandable\n");
+		vfree(newtable);
+		return -ENOSPC;
+	}
+
+	unsigned long long index = get_filename_index(*target, KMCSFS);
+	if (!index)
+	{
+		vfree(newtable);
+		return -ENOENT;
+	}
+
+	unsigned long long loc = KMCSFS->tableend;
+	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, target->Buffer, target->Length / sizeof(WCHAR));
+	if (index && dindex)
+	{
+		loc = KMCSFS->tableend + KMCSFS->dict[dindex].filenameloc + target->Length / sizeof(WCHAR);
+	}
+
+	newtable[0] = KMCSFS->table[0];
+	newtable[1] = (tablesize >> 24) & 0xff;
+	newtable[2] = (tablesize >> 16) & 0xff;
+	newtable[3] = (tablesize >> 8) & 0xff;
+	newtable[4] = tablesize & 0xff;
+	memmove(newtable + 5, KMCSFS->table + 5, loc - 5);
+	newtable[loc] = *"*";
+	for (unsigned long long i = 0; i < fn.Length / sizeof(WCHAR); i++)
+	{
+		newtable[loc + i + 1] = fn.Buffer[i] & 0xff;
+		if (newtable[loc + i + 1] == 92)
+		{
+			newtable[loc + i + 1] = 47;
+		}
+	}
+	memmove(newtable + loc + 1 + fn.Length / sizeof(WCHAR), KMCSFS->table + loc, KMCSFS->filenamesend - loc + 3 + 35 * KMCSFS->filecount);
+
+	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->dict[dindex].filenameloc + target->Length / sizeof(WCHAR) + 1, fn.Length, &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, false);
+
+	KMCSFS->filenamesend = KMCSFS->filenamesend + fn.Length / sizeof(WCHAR) + 1;
 	KMCSFS->extratablesize = extratablesize;
 	KMCSFS->tablesize = 1 + tablesize;
 	vfree(KMCSFS->table);

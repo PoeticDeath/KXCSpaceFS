@@ -60,3 +60,4 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size);
 int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING filename, unsigned long long index);
 int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn);
+int make_link(KMCSpaceFS* KMCSFS, UNICODE_STRING* target, UNICODE_STRING fn);

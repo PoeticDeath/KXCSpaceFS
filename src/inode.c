@@ -821,6 +821,53 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     return data;
 }
 
+static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct dentry* dentry)
+{
+    struct super_block* sb = old_dentry->d_inode->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    UNICODE_STRING* target = old_dentry->d_inode->i_private;
+    UNICODE_STRING* pfn = dir->i_private;
+    UNICODE_STRING fn;
+
+    fn.Length = pfn->Length + (pfn->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + dentry->d_name.len;
+    fn.Buffer = vmalloc(fn.Length);
+    if (!fn.Buffer)
+    {
+        return -ENOMEM;
+    }
+    memmove(fn.Buffer, pfn->Buffer, pfn->Length);
+    fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
+    memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
+
+    int ret = make_link(KMCSFS, target, fn);
+    if (IS_ERR(ERR_PTR(ret)))
+    {
+        return ret;
+    }
+
+    down_read(KMCSFS->op_lock);
+    struct inode* inode = kxcspacefs_iget(sb, 0, &fn);
+    up_read(KMCSFS->op_lock);
+    vfree(fn.Buffer);
+    if (IS_ERR(inode))
+    {
+        return PTR_ERR(inode);
+    }
+
+    down_write(KMCSFS->op_lock);
+    unsigned long long time = current_time(dir).tv_sec;
+    unsigned long long dir_index = get_filename_index(*pfn, KMCSFS);
+    chtime(dir_index, time, 1, KMCSFS);
+    chtime(dir_index, time, 3, KMCSFS);
+    dir->i_atime_sec = time;
+    dir->i_mtime_sec = time;
+    up_write(KMCSFS->op_lock);
+
+    d_instantiate(dentry, inode);
+
+    return ret;
+}
+
 static const struct inode_operations kxcspacefs_inode_ops =
 {
     .lookup = kxcspacefs_lookup,
@@ -833,6 +880,7 @@ static const struct inode_operations kxcspacefs_inode_ops =
     .fiemap = kxcspacefs_fiemap,
     .mknod = kxcspacefs_mknod,
     .symlink = kxcspacefs_symlink,
+    .link = kxcspacefs_link,
 };
 
 static const struct inode_operations symlink_inode_ops =
