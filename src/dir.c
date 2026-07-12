@@ -151,8 +151,14 @@ int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
     return ret;
 }
 
+int kxcspacefs_dir_fsync(struct file* file, loff_t start, loff_t end, int datasync)
+{
+	return 0;
+}
+
 const struct file_operations kxcspacefs_dir_ops =
 {
     .owner = THIS_MODULE,
     .iterate_shared = kxcspacefs_iterate,
+	.fsync = kxcspacefs_dir_fsync,
 };
