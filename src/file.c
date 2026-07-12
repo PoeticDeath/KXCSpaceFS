@@ -723,4 +723,5 @@ const struct file_operations kxcspacefs_file_ops =
     .llseek = generic_file_llseek,
     .fsync = generic_file_fsync,
     .fallocate = kxcspacefs_fallocate,
+    .unlocked_ioctl = kxcspacefs_ioctl,
 };

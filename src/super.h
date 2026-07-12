@@ -31,6 +31,7 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
 struct dentry* kxcspacefs_mount(struct file_system_type* fs_type, int flags, const char* dev_name, void* data);
 
 /* file functions */
+long kxcspacefs_ioctl(struct file* file, unsigned int cmd, unsigned long arg);
 extern const struct file_operations kxcspacefs_file_ops;
 extern const struct file_operations kxcspacefs_dir_ops;
 extern const struct address_space_operations kxcspacefs_aops;

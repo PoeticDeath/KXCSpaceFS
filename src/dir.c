@@ -161,4 +161,5 @@ const struct file_operations kxcspacefs_dir_ops =
     .owner = THIS_MODULE,
     .iterate_shared = kxcspacefs_iterate,
 	.fsync = kxcspacefs_dir_fsync,
+    .unlocked_ioctl = kxcspacefs_ioctl,
 };
