@@ -526,12 +526,20 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
                 if (!find_block(sb->s_bdev, KMCSFS, index, iattr->ia_size - size))
                 {
                     up_write(KMCSFS->op_lock);
-                    return -ENOMEM;
+                    return -ENOSPC;
                 }
             }
             else
             {
                 dealloc(KMCSFS, index, size, iattr->ia_size);
+                if (iattr->ia_size % KMCSFS->sectorsize)
+                {
+                    if (!find_block(sb->s_bdev, KMCSFS, index, iattr->ia_size % KMCSFS->sectorsize))
+                    {
+                        up_write(KMCSFS->op_lock);
+                        return -ENOSPC;
+                    }
+                }
             }
             inode->i_size = get_file_size(index, KMCSFS);
             inode->i_blocks = (inode->i_size + 511) / 512;

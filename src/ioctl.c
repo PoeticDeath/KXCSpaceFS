@@ -76,12 +76,20 @@ static int ioctl_setlabel(struct file* file, const char* __user user_label)
             if (!find_block(sb->s_bdev, KMCSFS, index, len - size))
             {
                 up_write(KMCSFS->op_lock);
-                return -ENOMEM;
+                return -ENOSPC;
             }
         }
         else
         {
             dealloc(KMCSFS, index, size, len);
+            if (len % KMCSFS->sectorsize)
+            {
+                if (!find_block(sb->s_bdev, KMCSFS, index, len % KMCSFS->sectorsize))
+                {
+                    up_write(KMCSFS->op_lock);
+                    return -ENOSPC;
+                }
+            }
         }
     }
     write_file(sb->s_bdev, KMCSFS, new_label, 0, len, index, get_file_size(index, KMCSFS), &bytes_written, true);
