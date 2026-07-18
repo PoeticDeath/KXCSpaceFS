@@ -127,7 +127,14 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
 #endif
 
     inode->i_blocks = (inode->i_size + 511) / 512;
-    set_nlink(inode, 1);
+    if (fn)
+    {
+        set_nlink(inode, get_link_count(KMCSFS, fn));
+    }
+    else
+    {
+        set_nlink(inode, 1);
+    }
 
     if (S_ISDIR(inode->i_mode))
     {
@@ -690,7 +697,7 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
     ret = find_block(sb->s_bdev, KMCSFS, index, sizeof(dev_t));
-    if (!IS_ERR(ERR_PTR(ret)))
+    if (ret)
     {
         dentry->d_inode->i_size = sizeof(dev_t);
         dentry->d_inode->i_blocks = (dentry->d_inode->i_size + 511) / 512;
@@ -698,6 +705,10 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
         char buf[sizeof(dev_t)] = {0};
         memmove(buf, &dev, sizeof(dev_t));
         ret = write_file(sb->s_bdev, KMCSFS, buf, 0, sizeof(dev_t), index, dentry->d_inode->i_size, &bytes_written, true);
+    }
+    else
+    {
+        ret = -ENOSPC;
     }
     up_write(KMCSFS->op_lock);
     init_special_inode(dentry->d_inode, mode, dev);
@@ -872,6 +883,7 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     chtime(dir_index, time, 3, KMCSFS);
     dir->i_atime_sec = time;
     dir->i_mtime_sec = time;
+    set_nlink(old_dentry->d_inode, old_dentry->d_inode->i_nlink + 1);
     up_write(KMCSFS->op_lock);
 
     d_instantiate(dentry, inode);
