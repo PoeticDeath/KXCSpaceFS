@@ -847,7 +847,10 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
+    down_write(KMCSFS->op_lock);
     int ret = make_link(KMCSFS, target, fn);
+    up_write(KMCSFS->op_lock);
+    
     if (IS_ERR(ERR_PTR(ret)))
     {
         return ret;

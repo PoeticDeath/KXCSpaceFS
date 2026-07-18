@@ -2136,7 +2136,7 @@ int make_link(KMCSpaceFS* KMCSFS, UNICODE_STRING* target, UNICODE_STRING fn)
 			newtable[loc + i + 1] = 47;
 		}
 	}
-	memmove(newtable + loc + 1 + fn.Length / sizeof(WCHAR), KMCSFS->table + loc, KMCSFS->filenamesend - loc + 3 + 35 * KMCSFS->filecount);
+	memmove(newtable + loc + 1 + fn.Length / sizeof(WCHAR), KMCSFS->table + loc, KMCSFS->filenamesend - loc + 2 + 35 * KMCSFS->filecount);
 
 	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->dict[dindex].filenameloc + target->Length / sizeof(WCHAR) + 1, fn.Length, &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, false);
 
