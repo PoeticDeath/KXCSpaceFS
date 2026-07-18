@@ -848,6 +848,11 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     UNICODE_STRING* pfn = dir->i_private;
     UNICODE_STRING fn;
 
+    if (get_link_count(KMCSFS, target) == 1 << 32 - 1)
+    {
+        return -EMLINK;
+    }
+
     fn.Length = pfn->Length + (pfn->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + dentry->d_name.len;
     fn.Buffer = vmalloc(fn.Length);
     if (!fn.Buffer)
@@ -864,6 +869,7 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     
     if (IS_ERR(ERR_PTR(ret)))
     {
+        vfree(fn.Buffer);
         return ret;
     }
 
