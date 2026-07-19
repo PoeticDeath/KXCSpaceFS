@@ -261,3 +261,23 @@ void RemoveDictEntry(Dict* dict, unsigned long long size, unsigned long long din
 	}
 	return;
 }
+
+void RemoveLinkDictEntry(Dict* dict, unsigned long long size, unsigned long long dindex, unsigned long long filenamelen, unsigned long long* cursize)
+{
+	unsigned long long index = dict[dindex].index;
+	unsigned long long filenameloc = dict[dindex].filenameloc;
+	memset(dict + dindex, 0, sizeof(Dict));
+	(*cursize)--;
+	for (unsigned long long i = 0; i < size; i++)
+	{
+		if (!dict[i].filenameloc)
+		{
+			continue;
+		}
+		if (dict[i].filenameloc > filenameloc)
+		{
+			dict[i].filenameloc -= filenamelen + 1;
+		}
+	}
+	return;
+}

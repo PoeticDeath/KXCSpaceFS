@@ -69,3 +69,4 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 int make_link(KMCSpaceFS* KMCSFS, UNICODE_STRING* target, UNICODE_STRING fn);
 unsigned int get_link_count(KMCSpaceFS* KMCSFS, UNICODE_STRING* fn);
 UNICODE_STRING_LOC link_iter(KMCSpaceFS* KMCSFS, UNICODE_STRING* fn, unsigned long long loc);
+int delete_link(KMCSpaceFS* KMCSFS, UNICODE_STRING* fn);

@@ -355,6 +355,7 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     UNICODE_STRING* pfn = dir->i_private;
     UNICODE_STRING fn;
+    int ret = 0;
 
     fn.Length = pfn->Length + (pfn->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + dentry->d_name.len;
     fn.Buffer = vmalloc(fn.Length);
@@ -367,7 +368,27 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
     down_write(KMCSFS->op_lock);
-    int ret = delete_file(sb->s_bdev, KMCSFS, fn, get_filename_index(fn, KMCSFS));
+    if (dentry->d_inode->i_nlink > 1)
+    {
+        unsigned long long nlink = get_link_count(KMCSFS, &fn) - 1;
+        UNICODE_STRING_LOC fn_iter;
+        fn_iter.loc = 0;
+        while (true)
+        {
+            fn_iter = link_iter(KMCSFS, &fn, fn_iter.loc);
+            if (!fn_iter.fn.Length)
+            {
+                break;
+            }
+            struct inode* i = kxcspacefs_iget(sb, 0, &fn_iter.fn);
+            set_nlink(i, nlink);
+        }
+        ret = delete_link(KMCSFS, &fn);
+    }
+    else
+    {
+        ret = delete_file(sb->s_bdev, KMCSFS, fn, get_filename_index(fn, KMCSFS));
+    }
     vfree(fn.Buffer);
 
     unsigned long long time = current_time(dir).tv_sec;

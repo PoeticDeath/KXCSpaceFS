@@ -2220,3 +2220,23 @@ UNICODE_STRING_LOC link_iter(KMCSpaceFS* KMCSFS, UNICODE_STRING* fn, unsigned lo
 		}
 	}
 }
+
+int delete_link(KMCSpaceFS* KMCSFS, UNICODE_STRING* fn)
+{
+	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+
+	unsigned long long loc = KMCSFS->tableend + KMCSFS->dict[dindex].filenameloc;
+	if (KMCSFS->table[loc - 1] == 255)
+	{
+		memmove(KMCSFS->table + loc, KMCSFS->table + loc + fn->Length + 1, KMCSFS->filenamesend - loc - fn->Length + 1 + 35 * KMCSFS->filecount);
+	}
+	else
+	{
+		memmove(KMCSFS->table + loc - 1, KMCSFS->table + loc + fn->Length, KMCSFS->filenamesend - loc - fn->Length + 2 + 35 * KMCSFS->filecount);
+	}
+
+	RemoveLinkDictEntry(KMCSFS->dict, KMCSFS->DictSize, dindex, fn->Length, &KMCSFS->CurDictSize);
+	KMCSFS->filenamesend = KMCSFS->filenamesend - fn->Length / sizeof(WCHAR) - 1;
+	
+	return 0;
+}
