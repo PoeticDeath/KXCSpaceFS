@@ -69,7 +69,7 @@ startover:
 	return ndict;
 }
 
-bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, unsigned long long filenamelen, unsigned long long* cursize, unsigned long long* size, unsigned long long index, bool scan)
+bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, unsigned long long filenamelen, unsigned long long* cursize, unsigned long long* size, unsigned long long index, bool createscan, bool linkscan)
 {
 	unsigned long long hash = 0;
 	char* Filename = vmalloc(filenamelen + 1);
@@ -128,7 +128,7 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 		*dict = tdict;
 	}
 	(*cursize)++;
-	if (scan)
+	if (createscan)
 	{
 		for (unsigned long long j = 0; j < *size; j++)
 		{
@@ -139,6 +139,20 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 			if ((*dict)[j].index >= index)
 			{
 				(*dict)[j].index++;
+			}
+			if ((*dict)[j].filenameloc >= filenameloc)
+			{
+				(*dict)[j].filenameloc += filenamelen + 1;
+			}
+		}
+	}
+	if (linkscan)
+	{
+		for (unsigned long long j = 0; j < *size; j++)
+		{
+			if (!(*dict)[j].filenameloc)
+			{
+				continue;
 			}
 			if ((*dict)[j].filenameloc >= filenameloc)
 			{

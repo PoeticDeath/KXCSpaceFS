@@ -269,7 +269,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 		    {
 			    if ((KMCSFS->table[i] & 0xff) == 255)
 			    {
-				    AddDictEntry(&KMCSFS->dict, filename, i - len - KMCSFS->tableend, len, &KMCSFS->CurDictSize, &KMCSFS->DictSize, count, false);
+				    AddDictEntry(&KMCSFS->dict, filename, i - len - KMCSFS->tableend, len, &KMCSFS->CurDictSize, &KMCSFS->DictSize, count, false, false);
 				    if (!(count % 1000))
 				    {
 					    pr_err("%llu / %llu indices computed.\n", count, KMCSFS->filecount);
@@ -280,7 +280,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 			    }
 			    else if ((KMCSFS->table[i] & 0xff) == 42)
 			    {
-				    AddDictEntry(&KMCSFS->dict, filename, i - len - KMCSFS->tableend, len, &KMCSFS->CurDictSize, &KMCSFS->DictSize, count, false);
+				    AddDictEntry(&KMCSFS->dict, filename, i - len - KMCSFS->tableend, len, &KMCSFS->CurDictSize, &KMCSFS->DictSize, count, false, false);
 				    if (!(count % 1000))
 				    {
 					    pr_err("%llu / %llu indices computed.\n", count, KMCSFS->filecount);
@@ -326,7 +326,9 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
     UNICODE_STRING root_fn;
     root_fn.Length = sizeof(WCHAR);
     root_fn.Buffer = &name;
+	down_read(KMCSFS->op_lock);
     root_inode = kxcspacefs_iget(sb, 0, &root_fn);
+	up_read(KMCSFS->op_lock);
     if (IS_ERR(root_inode))
     {
         pr_err("out of memory\n");

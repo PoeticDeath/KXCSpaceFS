@@ -217,7 +217,7 @@ unsigned long long get_filename_index(UNICODE_STRING FileName, KMCSpaceFS* KMCSF
 				j = 0;
 				if (found)
 				{
-					AddDictEntry(&KMCSFS->dict, FileName.Buffer, loc - FileNameLen, FileNameLen, &KMCSFS->CurDictSize, &KMCSFS->DictSize, i - 1, false);
+					AddDictEntry(&KMCSFS->dict, FileName.Buffer, loc - FileNameLen, FileNameLen, &KMCSFS->CurDictSize, &KMCSFS->DictSize, i - 1, false, false);
 
 					return i - 1;
 				}
@@ -1056,7 +1056,7 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	vfree(KMCSFS->table);
 	KMCSFS->table = newtable;
 
-	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->filenamesend - KMCSFS->tableend + 1, fn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, KMCSFS->filecount, false);
+	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->filenamesend - KMCSFS->tableend + 1, fn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, KMCSFS->filecount, false, false);
 
 	KMCSFS->filenamesend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR);
 	KMCSFS->tableend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2;
@@ -2070,7 +2070,7 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 		unsigned long long filenameloc = KMCSFS->dict[dindex].filenameloc;
 		struct inode* inode = KMCSFS->dict[dindex].inode;
 		RemoveDictEntry(KMCSFS->dict, KMCSFS->DictSize, dindex, fn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize);
-		AddDictEntry(&KMCSFS->dict, nfn.Buffer, filenameloc, nfn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, true);
+		AddDictEntry(&KMCSFS->dict, nfn.Buffer, filenameloc, nfn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, true, false);
 		dindex = FindDictEntry(KMCSFS->dict, newtable, KMCSFS->tableend, KMCSFS->DictSize, nfn.Buffer, nfn.Length / sizeof(WCHAR));
 		if (dindex)
 		{
@@ -2138,7 +2138,7 @@ int make_link(KMCSpaceFS* KMCSFS, UNICODE_STRING* target, UNICODE_STRING fn)
 	}
 	memmove(newtable + loc + 1 + fn.Length / sizeof(WCHAR), KMCSFS->table + loc, KMCSFS->filenamesend - loc + 2 + 35 * KMCSFS->filecount);
 
-	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->dict[dindex].filenameloc + target->Length / sizeof(WCHAR) + 1, fn.Length, &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, false);
+	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->dict[dindex].filenameloc + target->Length / sizeof(WCHAR) + 1, fn.Length, &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, false, true);
 
 	KMCSFS->filenamesend = KMCSFS->filenamesend + fn.Length / sizeof(WCHAR) + 1;
 	KMCSFS->extratablesize = extratablesize;
@@ -2176,6 +2176,46 @@ unsigned int get_link_count(KMCSpaceFS* KMCSFS, UNICODE_STRING* fn)
 				return nlink;
 			default:
 				loc++;
+				break;
+		}
+	}
+}
+
+UNICODE_STRING_LOC link_iter(KMCSpaceFS* KMCSFS, UNICODE_STRING* fn, unsigned long long loc)
+{
+	UNICODE_STRING_LOC fn_iter;
+	fn_iter.fn.Length = 0;
+	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length / sizeof(WCHAR));
+	if (!loc)
+	{
+		loc = KMCSFS->tableend;
+		if (KMCSFS->dict[dindex].index && dindex)
+		{
+			loc = KMCSFS->tableend + KMCSFS->dict[dindex].filenameloc;
+		}
+		while (KMCSFS->table[loc] != 255)
+		{
+			loc--;
+		}
+		loc++;
+	}
+
+	while (true)
+	{
+		switch (KMCSFS->table[loc])
+		{
+			case 42:
+				fn_iter.fn.Buffer = KMCSFS->table + loc - fn_iter.fn.Length;
+				loc++;
+				fn_iter.loc = loc;
+				return fn_iter;
+			case 255:
+				fn_iter.fn.Buffer = KMCSFS->table + loc - fn_iter.fn.Length;
+				fn_iter.loc = loc;
+				return fn_iter;
+			default:
+				loc++;
+				fn_iter.fn.Length++;
 				break;
 		}
 	}

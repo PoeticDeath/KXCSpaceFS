@@ -8,6 +8,12 @@ typedef struct
     WCHAR* Buffer;
     unsigned long long Length;
 } UNICODE_STRING;
+typedef struct
+{
+	UNICODE_STRING fn;
+	unsigned long long loc;
+} UNICODE_STRING_LOC;
+
 
 typedef struct
 {
@@ -62,3 +68,4 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn, UNICODE_STRING nfn);
 int make_link(KMCSpaceFS* KMCSFS, UNICODE_STRING* target, UNICODE_STRING fn);
 unsigned int get_link_count(KMCSpaceFS* KMCSFS, UNICODE_STRING* fn);
+UNICODE_STRING_LOC link_iter(KMCSpaceFS* KMCSFS, UNICODE_STRING* fn, unsigned long long loc);

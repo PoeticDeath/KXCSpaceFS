@@ -55,7 +55,14 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     }
 
     /* Get a locked inode from Linux */
-    inode = iget_locked(sb, index);
+    if (dindex)
+    {
+        inode = iget_locked(sb, dindex);
+    }
+    else
+    {
+        inode = iget_locked(sb, index);
+    }
     if (!inode)
     {
         return ERR_PTR(-ENOMEM);
@@ -163,11 +170,9 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     if (S_ISCHR(inode->i_mode) | S_ISBLK(inode->i_mode) | S_ISFIFO(inode->i_mode))
     {
         unsigned long long bytes_read = 0;
-        down_read(KMCSFS->op_lock);
         char buf[sizeof(dev_t)] = {0};
         read_file(sb->s_bdev, KMCSFS, buf, 0, sizeof(dev_t), index, &bytes_read);
         memmove(&inode->i_rdev, buf, sizeof(dev_t));
-        up_read(KMCSFS->op_lock);
         init_special_inode(inode, inode->i_mode, inode->i_rdev);
     }
 
@@ -552,12 +557,23 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
             inode->i_blocks = (inode->i_size + 511) / 512;
         }
 	}
-    up_write(KMCSFS->op_lock);
 
 	if (iattr->ia_valid)
     {
-		setattr_copy(id, inode, iattr);
+        UNICODE_STRING_LOC fn_iter;
+        fn_iter.loc = 0;
+        while (true)
+        {
+            fn_iter = link_iter(KMCSFS, fn, fn_iter.loc);
+            if (!fn_iter.fn.Length)
+            {
+                break;
+            }
+            struct inode* i = kxcspacefs_iget(sb, 0, &fn_iter.fn);
+            setattr_copy(id, i, iattr);
+        }
 	}
+    up_write(KMCSFS->op_lock);
 
 	return ret;
 }
@@ -889,7 +905,19 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     chtime(dir_index, time, 3, KMCSFS);
     dir->i_atime_sec = time;
     dir->i_mtime_sec = time;
-    set_nlink(old_dentry->d_inode, old_dentry->d_inode->i_nlink + 1);
+    unsigned long long nlink = get_link_count(KMCSFS, target);
+    UNICODE_STRING_LOC fn_iter;
+    fn_iter.loc = 0;
+    while (true)
+    {
+        fn_iter = link_iter(KMCSFS, target, fn_iter.loc);
+        if (!fn_iter.fn.Length)
+        {
+            break;
+        }
+        struct inode* i = kxcspacefs_iget(sb, 0, &fn_iter.fn);
+        set_nlink(i, nlink);
+    }
     up_write(KMCSFS->op_lock);
 
     d_instantiate(dentry, inode);

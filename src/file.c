@@ -452,8 +452,19 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
         unsigned long long index = get_filename_index(*fn, KMCSFS);
         if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
         {
-            inode->i_size = plen;
-            inode->i_blocks = (inode->i_size + 511) / 512;
+            UNICODE_STRING_LOC fn_iter;
+            fn_iter.loc = 0;
+            while (true)
+            {
+                fn_iter = link_iter(KMCSFS, fn, fn_iter.loc);
+                if (!fn_iter.fn.Length)
+                {
+                    break;
+                }
+                struct inode* i = kxcspacefs_iget(sb, 0, &fn_iter.fn);
+                i->i_size = plen;
+                i->i_blocks = (i->i_size + 511) / 512;
+            }
         }
         else
         {
