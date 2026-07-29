@@ -383,6 +383,10 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             {
                 len = folio_inode(folio)->i_size - pos;
             }
+            if (pos > folio_inode(folio)->i_size)
+            {
+                len = 0;
+            }
             up_read(KMCSFS->op_lock);
             if (!buf)
             {
@@ -391,7 +395,6 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
                 {
                     kunmap_local(nbuf);
                     folio_unlock(folio);
-                    folio_put(folio);
                     blk_finish_plug(&plug);
                     return -ENOMEM;
                 }
