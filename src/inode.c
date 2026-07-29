@@ -755,6 +755,7 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
 #if KXCSPACEFS_AT_LEAST(6, 17, 0)
 static struct dentry* kxcspacefs_mkdir(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, umode_t mode)
 {
+    dget(dentry);
     int ret = kxcspacefs_create(id, dir, dentry, mode | S_IFDIR, 0);
     if (IS_ERR(ERR_PTR(ret)))
     {
