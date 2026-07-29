@@ -343,7 +343,7 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     }
 
     /* setup dentry */
-    d_instantiate_new(dentry, inode);
+    d_instantiate(dentry, inode);
 
     return 0;
 }
@@ -828,7 +828,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
         vfree(fn.Buffer);
         return PTR_ERR(inode);
     }
-    d_instantiate_new(dentry, inode);
+    d_instantiate(dentry, inode);
 
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(fn, KMCSFS);
@@ -941,7 +941,7 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     }
     up_write(KMCSFS->op_lock);
 
-    d_instantiate_new(dentry, inode);
+    d_instantiate(dentry, inode);
 
     return ret;
 }
