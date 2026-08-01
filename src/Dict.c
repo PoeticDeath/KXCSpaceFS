@@ -7,14 +7,14 @@
 
 bool incmp(unsigned char a, unsigned char b)
 {
-	if (a >= 'A' && a <= 'Z')
+	/*if (a >= 'A' && a <= 'Z')
 	{
 		a += 32;
 	}
 	if (b >= 'A' && b <= 'Z')
 	{
 		b += 32;
-	}
+	}*/
 	return a == b;
 }
 
@@ -84,10 +84,10 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 		{
 			Filename[i] = 47;
 		}
-		if (Filename[i] >= 'A' && Filename[i] <= 'Z')
+		/*if (Filename[i] >= 'A' && Filename[i] <= 'Z')
 		{
 			Filename[i] += 32;
-		}
+		}*/
 	}
 	sha3_HashBuffer(256, 0, Filename, filenamelen, &hash, 8);
 	vfree(Filename);
@@ -108,7 +108,7 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 		}
 		i++;
 	}
-	while (i > *size - 1)
+	while ((*dict)[i].filenameloc || i > *size - 1)
 	{
 		Dict* tdict = ResizeDict(*dict, *size, size);
 		if (tdict == NULL)
@@ -191,10 +191,10 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 		{
 			Filename[i] = 47;
 		}
-		if (Filename[i] >= 'A' && Filename[i] <= 'Z')
+		/*if (Filename[i] >= 'A' && Filename[i] <= 'Z')
 		{
 			Filename[i] += 32;
-		}
+		}*/
 	}
 	unsigned long long hash = 0;
 	sha3_HashBuffer(256, 0, Filename, filenamelen, &hash, 8);
