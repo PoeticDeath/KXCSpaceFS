@@ -1375,13 +1375,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 		{
 			if (cursize % KMCSFS->sectorsize)
 			{ // Last block was part sector
-				tempdata = kzalloc(endrlength, GFP_KERNEL);
-				if (!tempdata)
-				{
-					pr_err("out of memory\n");
-					vfree(used_bytes);
-					return false;
-				}
+				tempdata = KMCSFS->findblockbuf;
 				sync_read_phys(KMCSFS->size - endsector * KMCSFS->sectorsize - KMCSFS->sectorsize + endoffset - endoffset % 512, endrlength, tempdata, bdev);
 				dealloc(KMCSFS, index, cursize, cursize - cursize % KMCSFS->sectorsize);
 				used_bytes[endsector] -= cursize % KMCSFS->sectorsize;
@@ -1778,7 +1772,6 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 			if (tempdata)
 			{
 				sync_write_phys(KMCSFS->size - cursector * KMCSFS->sectorsize - KMCSFS->sectorsize + newoffset, endlength, tempdata + endoffset % 512, bdev, KMCSFS);
-				kfree(tempdata);
 				tempdata = NULL;
 			}
 		}
