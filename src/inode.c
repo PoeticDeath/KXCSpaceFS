@@ -1,6 +1,6 @@
 // Copyright (c) Anthony Kerr 2026-
 
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+#define pr_fmt(fmt) KBUILD_MODNAME ":%s:%s:%d: " fmt, __FILE__, __func__, __LINE__
 
 #include <linux/buffer_head.h>
 #include <linux/fs.h>

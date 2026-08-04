@@ -1,5 +1,7 @@
 // Copyright (c) Anthony Kerr 2024-
 
+#define pr_fmt(fmt) KBUILD_MODNAME ":%s:%s:%d: " fmt, __FILE__, __func__, __LINE__
+
 #include "linuxfs.h"
 #include "Dict.h"
 #include "cspacefs.h"
