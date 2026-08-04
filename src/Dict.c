@@ -55,7 +55,7 @@ startover:
 			{
 				j++;
 			}
-			if (j > *newsize - 1)
+			if (ndict[j].filenameloc || j > *newsize - 1)
 			{
 				vfree(ndict);
 				goto startover;
