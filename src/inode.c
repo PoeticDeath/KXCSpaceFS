@@ -803,7 +803,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
 {
     struct super_block* sb = dir->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
-    unsigned int l = strlen(symname) + 1;
+    unsigned int l = strlen(symname);
     UNICODE_STRING* pfn = dir->i_private;
     UNICODE_STRING fn;
 
@@ -857,12 +857,13 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     UNICODE_STRING* fn;
     fn = inode->i_private;
     down_read(KMCSFS->op_lock);
-    uint8_t* data = kzalloc(inode->i_size, GFP_KERNEL);
+    uint8_t* data = kzalloc(inode->i_size + 1, GFP_USER);
     if (!data)
     {
         up_read(KMCSFS->op_lock);
         return ERR_PTR(-ENOMEM);
     }
+    memset(data, 0, inode->i_size + 1);
     
     unsigned long long bytes_read = 0;
     int ret = read_file(sb->s_bdev, KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read);
