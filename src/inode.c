@@ -460,9 +460,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
         }
         else
         {
-            down_write(KMCSFS->op_lock);
-            ret = delete_file(sb->s_bdev, KMCSFS, nfn, get_filename_index(nfn, KMCSFS));
-            up_write(KMCSFS->op_lock);
+            ret = kxcspacefs_unlink(new_dir, new_dentry);
 
             if (IS_ERR(ERR_PTR(ret)))
             {

@@ -166,7 +166,7 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 	(*dict)[i].hash = hash;
 	(*dict)[i].filenameloc = filenameloc;
 	(*dict)[i].index = index;
-	if (*cursize * 3 / 4 > *size)
+	if (*cursize > *size * 3 / 4)
 	{
 		Dict* tdict = ResizeDict(*dict, *size, size);
 		if (tdict == NULL)
