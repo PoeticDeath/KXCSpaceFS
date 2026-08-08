@@ -221,6 +221,7 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     down_read(KMCSFS->op_lock);
     inode = kxcspacefs_iget(sb, 0, &fn);
     up_read(KMCSFS->op_lock);
+    vfree(fn.Buffer);
     if (IS_ERR(inode))
     {
         return (void*)inode;

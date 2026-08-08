@@ -12,6 +12,9 @@ typedef struct _Dict
 	unsigned long long hash;
 	unsigned long long index;
 
+	struct _Dict* ndict;
+	struct _Dict* pdict;
+
 	struct inode* inode;
 } Dict;
 

@@ -36,13 +36,12 @@ Dict* ResizeDict(Dict* dict, unsigned long long oldsize, unsigned long long* new
 	Dict* ndict = NULL;
 startover:
 	*newsize *= 2;
-	ndict = vmalloc(sizeof(Dict) * *newsize);
+	ndict = CreateDict(*newsize);
 	if (ndict == NULL)
 	{
 		*newsize = oldsize;
 		return NULL;
 	}
-	memset(ndict, 0, sizeof(Dict) * *newsize);
 	for (unsigned long long i = 0; i < oldsize; i++)
 	{
 		if (dict[i].filenameloc)
@@ -52,6 +51,12 @@ startover:
 			if (!j)
 			{
 				j++;
+			}
+			Dict* tdict = ndict + j;
+			bool taken = ndict[j].filenameloc;
+			while (tdict->ndict)
+			{
+				tdict = tdict->ndict;
 			}
 			while (ndict[j].filenameloc && j < *newsize - 1)
 			{
@@ -66,6 +71,11 @@ startover:
 			ndict[j].hash = hash;
 			ndict[j].index = dict[i].index;
 			ndict[j].inode = dict[i].inode;
+			if (taken)
+			{
+				ndict[j].pdict = tdict;
+				tdict->ndict = ndict + j;
+			}
 		}
 	}
 	return ndict;
@@ -98,22 +108,20 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 	{
 		i++;
 	}
+	Dict* tdict = *dict + i;
+	bool taken = (*dict)[i].filenameloc;
+	while (tdict->ndict)
+	{
+		tdict = tdict->ndict;
+	}
 	while ((*dict)[i].filenameloc && i < *size - 1)
 	{
-		if ((*dict)[i].hash == hash)
-		{
-			memset(*dict + i, 0, sizeof(Dict));
-			(*dict)[i].hash = hash;
-			(*dict)[i].filenameloc = filenameloc;
-			(*dict)[i].index = index;
-			return true;
-		}
 		i++;
 	}
 	while ((*dict)[i].filenameloc || i > *size - 1)
 	{
-		Dict* tdict = ResizeDict(*dict, *size, size);
-		if (tdict == NULL)
+		Dict* ndict = ResizeDict(*dict, *size, size);
+		if (ndict == NULL)
 		{
 			return false;
 		}
@@ -122,12 +130,18 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 		{
 			i++;
 		}
-		while (tdict[i].filenameloc && i < *size - 1)
+		tdict = ndict + i;
+		taken = ndict[i].filenameloc;
+		while (tdict->ndict)
+		{
+			tdict = tdict->ndict;
+		}
+		while (ndict[i].filenameloc && i < *size - 1)
 		{
 			i++;
 		}
 		vfree(*dict);
-		*dict = tdict;
+		*dict = ndict;
 	}
 	(*cursize)++;
 	if (createscan)
@@ -166,6 +180,11 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 	(*dict)[i].hash = hash;
 	(*dict)[i].filenameloc = filenameloc;
 	(*dict)[i].index = index;
+	if (taken)
+	{
+		(*dict)[i].pdict = tdict;
+		tdict->ndict = *dict + i;
+	}
 	if (*cursize > *size * 3 / 4)
 	{
 		Dict* tdict = ResizeDict(*dict, *size, size);
@@ -236,7 +255,15 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 				return o;
 			}
 		}
-		o++;
+		if (dict[o].ndict)
+		{
+			o = dict[o].ndict - dict;
+		}
+		else
+		{
+			vfree(Filename);
+			return 0;
+		}
 	}
 }
 
@@ -244,7 +271,27 @@ void RemoveDictEntry(Dict* dict, unsigned long long size, unsigned long long din
 {
 	unsigned long long index = dict[dindex].index;
 	unsigned long long filenameloc = dict[dindex].filenameloc;
-	memset(dict + dindex, 0, sizeof(Dict));
+	if (dict[dindex].ndict)
+	{
+		Dict* tdict = dict + dindex;
+		Dict* ndict = tdict->ndict;
+		Dict* pdict = tdict->pdict;
+		memmove(tdict, ndict, sizeof(Dict));
+		memset(ndict, 0, sizeof(Dict));
+		if (tdict->ndict)
+		{
+			tdict->ndict->pdict = tdict;
+		}
+		tdict->pdict = pdict;
+	}
+	else if (dict[dindex].pdict)
+	{
+		dict[dindex].pdict->ndict = NULL;
+	}
+	else
+	{
+		memset(dict + dindex, 0, sizeof(Dict));
+	}
 	(*cursize)--;
 	for (unsigned long long i = 0; i < size; i++)
 	{
@@ -268,7 +315,27 @@ void RemoveLinkDictEntry(Dict* dict, unsigned long long size, unsigned long long
 {
 	unsigned long long index = dict[dindex].index;
 	unsigned long long filenameloc = dict[dindex].filenameloc;
-	memset(dict + dindex, 0, sizeof(Dict));
+	if (dict[dindex].ndict)
+	{
+		Dict* tdict = dict + dindex;
+		Dict* ndict = tdict->ndict;
+		Dict* pdict = tdict->pdict;
+		memmove(tdict, ndict, sizeof(Dict));
+		memset(ndict, 0, sizeof(Dict));
+		if (tdict->ndict)
+		{
+			tdict->ndict->pdict = tdict;
+		}
+		tdict->pdict = pdict;
+	}
+	else if (dict[dindex].pdict)
+	{
+		dict[dindex].pdict->ndict = NULL;
+	}
+	else
+	{
+		memset(dict + dindex, 0, sizeof(Dict));
+	}
 	(*cursize)--;
 	for (unsigned long long i = 0; i < size; i++)
 	{
