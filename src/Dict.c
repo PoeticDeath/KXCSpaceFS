@@ -25,6 +25,7 @@ Dict* CreateDict(unsigned long long size)
 	Dict* dict = vmalloc(sizeof(Dict) * size);
 	if (dict == NULL)
 	{
+		pr_err("out of memory\n");
 		return NULL;
 	}
 	memset(dict, 0, sizeof(Dict) * size);
@@ -87,6 +88,7 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 	char* Filename = vmalloc(filenamelen + 1);
 	if (Filename == NULL)
 	{
+		pr_err("out of memory\n");
 		return false;
 	}
 	for (unsigned long long i = 0; i < filenamelen; i++)
@@ -203,6 +205,7 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 	char* Filename = vmalloc(filenamelen + 1);
 	if (Filename == NULL)
 	{
+		pr_err("out of memory\n");
 		return 0;
 	}
 	for (unsigned long long i = 0; i < filenamelen; i++)

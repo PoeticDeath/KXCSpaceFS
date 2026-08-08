@@ -319,6 +319,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
         char* buf = vmalloc(len);
         if (!buf)
         {
+            pr_err("out of memory\n");
             folio_unlock(folio);
             return -ENOMEM;
         }
@@ -393,6 +394,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
                 buf = vmalloc(KMCSFS->sectorsize);
                 if (!buf)
                 {
+                    pr_err("out of memory\n");
                     kunmap_local(nbuf);
                     folio_unlock(folio);
                     blk_finish_plug(&plug);

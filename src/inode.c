@@ -213,6 +213,7 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     fn.Buffer = vmalloc(fn.Length);
     if (!fn.Buffer)
     {
+        pr_err("out of memory\n");
         return ERR_PTR(-ENOMEM);
     }
     memmove(fn.Buffer, pfn->Buffer, pfn->Length);
@@ -266,6 +267,7 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     fn.Buffer = vmalloc(fn.Length);
     if (!fn.Buffer)
     {
+        pr_err("out of memory\n");
         return ERR_PTR(-ENOMEM);
     }
     memmove(fn.Buffer, pfn->Buffer, pfn->Length);
@@ -362,6 +364,7 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     fn.Buffer = vmalloc(fn.Length);
     if (!fn.Buffer)
     {
+        pr_err("out of memory\n");
         return -ENOMEM;
     }
     memmove(fn.Buffer, pfn->Buffer, pfn->Length);
@@ -442,6 +445,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     nfn.Buffer = vmalloc(nfn.Length);
     if (!nfn.Buffer)
     {
+        pr_err("out of memory\n");
         return -ENOMEM;
     }
     memmove(nfn.Buffer, newdir->Buffer, newdir->Length);
@@ -815,6 +819,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     fn.Buffer = vmalloc(fn.Length);
     if (!fn.Buffer)
     {
+        pr_err("out of memory\n");
         return -ENOMEM;
     }
     memmove(fn.Buffer, pfn->Buffer, pfn->Length);
@@ -864,6 +869,7 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     uint8_t* data = kzalloc(inode->i_size + 1, GFP_USER);
     if (!data)
     {
+        pr_err("out of memory\n");
         up_read(KMCSFS->op_lock);
         return ERR_PTR(-ENOMEM);
     }
@@ -901,6 +907,7 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     fn.Buffer = vmalloc(fn.Length);
     if (!fn.Buffer)
     {
+        pr_err("out of memory\n");
         return -ENOMEM;
     }
     memmove(fn.Buffer, pfn->Buffer, pfn->Length);

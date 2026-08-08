@@ -138,6 +138,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
     KMCSpaceFS* KMCSFS = vmalloc(sizeof(KMCSpaceFS));
     if (!KMCSFS)
     {
+		pr_err("out of memory\n");
         ret = -ENOMEM;
         goto release;
     }
@@ -150,12 +151,14 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
     KMCSFS->table = vmalloc(KMCSFS->extratablesize);
     if (!KMCSFS->table)
     {
+		pr_err("out of memory\n");
         ret = -ENOMEM;
         goto free_kmcsfs;
     }
 	char* tmp = kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
 	if (!tmp)
 	{
+		pr_err("out of memory\n");
 		ret = -ENOMEM;
 		vfree(KMCSFS->table);
 		goto free_kmcsfs;
