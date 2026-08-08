@@ -297,7 +297,16 @@ void RemoveDictEntry(Dict* dict, unsigned long long size, unsigned long long din
 			count++;
 			tdict = tdict->ndict;
 		}
-		Dict* ldict = CreateDict(count);
+		Dict* ldict;
+		Dict tmp[64];
+		if (count > 64)
+		{
+		 	ldict = CreateDict(count);
+		}
+		else
+		{
+			ldict = tmp;
+		}
 		if (ldict)
 		{
 			unsigned long long i = 0;
@@ -338,7 +347,10 @@ void RemoveDictEntry(Dict* dict, unsigned long long size, unsigned long long din
 					tdict->ndict = dict + ndindex;
 				}
 			}
-			vfree(ldict);
+			if (count > 64)
+			{
+				vfree(ldict);
+			}
 		}
 	}
 	else if (dict[dindex].pdict)
@@ -396,7 +408,16 @@ void RemoveLinkDictEntry(Dict* dict, unsigned long long size, unsigned long long
 			count++;
 			tdict = tdict->ndict;
 		}
-		Dict* ldict = CreateDict(count);
+		Dict* ldict;
+		Dict tmp[64];
+		if (count > 64)
+		{
+		 	ldict = CreateDict(count);
+		}
+		else
+		{
+			ldict = tmp;
+		}
 		if (ldict)
 		{
 			unsigned long long i = 0;
@@ -437,7 +458,10 @@ void RemoveLinkDictEntry(Dict* dict, unsigned long long size, unsigned long long
 					tdict->ndict = dict + ndindex;
 				}
 			}
-			vfree(ldict);
+			if (count > 64)
+			{
+				vfree(ldict);
+			}
 		}
 	}
 	else if (dict[dindex].pdict)
