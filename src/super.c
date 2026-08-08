@@ -88,8 +88,10 @@ static void kxcspacefs_evict_inode(struct inode* inode)
 		if (fn->Buffer)
 		{
 			KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
+			down_read(KMCSFS->op_lock);
 			unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
 			KMCSFS->dict[dindex].inode = NULL;
+			up_read(KMCSFS->op_lock);
 			vfree(fn->Buffer);
 			fn->Buffer = NULL;
 		}
