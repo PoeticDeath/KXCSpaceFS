@@ -80,11 +80,32 @@ static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
     return 0;
 }
 
+static void kxcspacefs_evict_inode(struct inode* inode)
+{
+	UNICODE_STRING* fn = inode->i_private;
+	if (fn)
+	{
+		if (fn->Buffer)
+		{
+			KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
+			unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+			KMCSFS->dict[dindex].inode = NULL;
+			vfree(fn->Buffer);
+			fn->Buffer = NULL;
+		}
+		vfree(fn);
+		inode->i_private = NULL;
+	}
+	truncate_inode_pages_final(&inode->i_data);
+	clear_inode(inode);
+}
+
 static struct super_operations kxcspacefs_super_ops =
 {
     .put_super = kxcspacefs_put_super,
     .sync_fs = kxcspacefs_sync_fs,
     .statfs = kxcspacefs_statfs,
+	.evict_inode = kxcspacefs_evict_inode,
 };
 
 /* Fill the struct superblock from partition superblock */
