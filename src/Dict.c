@@ -287,6 +287,7 @@ void RemoveDictEntry(Dict* dict, unsigned long long size, unsigned long long din
 	else if (dict[dindex].pdict)
 	{
 		dict[dindex].pdict->ndict = NULL;
+		memset(dict + dindex, 0, sizeof(Dict));
 	}
 	else
 	{
@@ -331,6 +332,7 @@ void RemoveLinkDictEntry(Dict* dict, unsigned long long size, unsigned long long
 	else if (dict[dindex].pdict)
 	{
 		dict[dindex].pdict->ndict = NULL;
+		memset(dict + dindex, 0, sizeof(Dict));
 	}
 	else
 	{
