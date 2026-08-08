@@ -475,8 +475,11 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     ret = rename_file(sb->s_bdev, KMCSFS, *oldfn, nfn);
     if (!IS_ERR(ERR_PTR(ret)))
     {
-        unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, nfn.Buffer, nfn.Length);
-        KMCSFS->dict[dindex].inode = old_dentry->d_inode;
+        if (atomic_read(&old_dentry->d_inode->i_count) > 1)
+        {
+            unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, nfn.Buffer, nfn.Length);
+            KMCSFS->dict[dindex].inode = old_dentry->d_inode;
+        }
         vfree(oldfn->Buffer);
         oldfn->Length = nfn.Length;
         oldfn->Buffer = nfn.Buffer;
