@@ -558,6 +558,12 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
 
 	if (S_ISREG(inode->i_mode) && (iattr->ia_valid & ATTR_SIZE))
     {
+        if (iattr->ia_size > KMCSFS->size)
+        {
+            up_write(KMCSFS->op_lock);
+            return -EFBIG;
+        }
+
         unsigned long long size = get_file_size(index, KMCSFS);
 		if (size != iattr->ia_size)
 		{

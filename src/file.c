@@ -680,6 +680,11 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
     UNICODE_STRING* fn = inode->i_private;
 
     unsigned long long plen = offset + len;
+    if (plen > KMCSFS->size)
+    {
+        return -EFBIG;
+    }
+    
     down_write(KMCSFS->op_lock);
     if (plen > inode->i_size)
     {
