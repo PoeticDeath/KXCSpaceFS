@@ -407,6 +407,21 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     return ret;
 }
 
+static int kxcspacefs_rmdir(struct inode* dir, struct dentry* dentry)
+{
+    struct super_block* sb = dir->i_sb;
+
+    /* If the directory is not empty, fail */
+    int ret = kxcspacefs_iterate((void*)dentry->d_inode, NULL);
+    if (IS_ERR(ERR_PTR(ret)))
+    {
+        return ret;
+    }
+
+    /* Remove directory with unlink */
+    return kxcspacefs_unlink(dir, dentry);
+}
+
 #if KXCSPACEFS_AT_LEAST(6, 3, 0)
 static int kxcspacefs_rename(struct mnt_idmap* id, struct inode* old_dir, struct dentry* old_dentry, struct inode* new_dir, struct dentry* new_dentry, unsigned int flags)
 #elif KXCSPACEFS_AT_LEAST(5, 12, 0)
@@ -466,7 +481,14 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
         }
         else
         {
-            ret = kxcspacefs_unlink(new_dir, new_dentry);
+            if (S_ISDIR(new_dentry->d_inode->i_mode))
+            {
+                ret = kxcspacefs_rmdir(new_dir, new_dentry);
+            }
+            else
+            {
+                ret = kxcspacefs_unlink(new_dir, new_dentry);
+            }
 
             if (IS_ERR(ERR_PTR(ret)))
             {
@@ -792,21 +814,6 @@ static int kxcspacefs_mkdir(struct inode* dir, struct dentry* dentry, umode_t mo
     return kxcspacefs_create(dir, dentry, mode | S_IFDIR, 0);
 }
 #endif
-
-static int kxcspacefs_rmdir(struct inode* dir, struct dentry* dentry)
-{
-    struct super_block* sb = dir->i_sb;
-
-    /* If the directory is not empty, fail */
-    int ret = kxcspacefs_iterate((void*)dentry->d_inode, NULL);
-    if (IS_ERR(ERR_PTR(ret)))
-    {
-        return ret;
-    }
-
-    /* Remove directory with unlink */
-    return kxcspacefs_unlink(dir, dentry);
-}
 
 #if KXCSPACEFS_AT_LEAST(6, 3, 0)
 static int kxcspacefs_symlink(struct mnt_idmap* id, struct inode* dir, struct dentry* dentry, const char* symname)
