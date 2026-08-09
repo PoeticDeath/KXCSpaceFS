@@ -391,6 +391,7 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     }
     else
     {
+        set_nlink(dentry->d_inode, 0);
         ret = delete_file(sb->s_bdev, KMCSFS, fn, get_filename_index(fn, KMCSFS));
     }
     vfree(fn.Buffer);
