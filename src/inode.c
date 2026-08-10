@@ -55,32 +55,10 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     }
 
     /* Get a locked inode from Linux */
-    if (dindex)
-    {
-        inode = iget_locked(sb, dindex);
-    }
-    else
-    {
-        inode = iget_locked(sb, index);
-    }
+    inode = new_inode(sb);
     if (!inode)
     {
         return ERR_PTR(-ENOMEM);
-    }
-
-    /* If inode is in cache, clean it */
-#if KXCSPACEFS_AT_LEAST(7, 0, 0)
-    if (!(inode->i_state.__state & I_NEW))
-#else
-    if (!(inode->i_state & I_NEW))
-#endif
-    {
-        UNICODE_STRING* fn = inode->i_private;
-        if (fn->Length > sizeof(WCHAR))
-        {
-            vfree(fn->Buffer);
-            vfree(fn);
-        }
     }
 
     inode->i_ino = index;
@@ -107,6 +85,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         inode->i_private = ofn;
         inode->i_ino = KMCSFS->dict[dindex].hash;
     }
+    insert_inode_hash(inode);
 
     inode->i_sb = sb;
     inode->i_op = &kxcspacefs_inode_ops;
