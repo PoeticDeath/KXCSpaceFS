@@ -276,22 +276,15 @@ void RemoveDictEntry(Dict* dict, unsigned long long size, unsigned long long din
 	unsigned long long filenameloc = dict[dindex].filenameloc;
 	if (dict[dindex].ndict)
 	{
-		Dict* tdict = dict + dindex;
-		Dict* ndict = tdict->ndict;
-		Dict* pdict = tdict->pdict;
-		memmove(tdict, ndict, sizeof(Dict));
-		memset(ndict, 0, sizeof(Dict));
-		if (tdict->ndict)
+		Dict* tdict = dict[dindex].ndict;
+		if (tdict->pdict->pdict)
 		{
-			tdict->ndict->pdict = tdict;
+			tdict->pdict->pdict->ndict = NULL;
 		}
-		tdict->pdict = pdict;
+		tdict->pdict = NULL;
+		memset(dict + dindex, 0, sizeof(Dict));
 
-		unsigned long long count = 0;
-		while (tdict->pdict)
-		{
-			tdict = tdict->pdict;
-		}
+		unsigned long long count = 1;
 		while (tdict->ndict)
 		{
 			count++;
@@ -310,14 +303,14 @@ void RemoveDictEntry(Dict* dict, unsigned long long size, unsigned long long din
 		if (ldict)
 		{
 			unsigned long long i = 0;
-			while (tdict->pdict)
+			while (tdict)
 			{
 				ldict[i] = *tdict;
-				tdict = tdict->pdict;
-				memset(tdict->ndict, 0, sizeof(Dict));
+				Dict* ttdict = tdict->pdict;
+				memset(tdict, 0, sizeof(Dict));
+				tdict = ttdict;
 				i++;
 			}
-			memset(tdict, 0, sizeof(Dict));
 			while (i)
 			{
 				i--;
@@ -387,22 +380,15 @@ void RemoveLinkDictEntry(Dict* dict, unsigned long long size, unsigned long long
 	unsigned long long filenameloc = dict[dindex].filenameloc;
 	if (dict[dindex].ndict)
 	{
-		Dict* tdict = dict + dindex;
-		Dict* ndict = tdict->ndict;
-		Dict* pdict = tdict->pdict;
-		memmove(tdict, ndict, sizeof(Dict));
-		memset(ndict, 0, sizeof(Dict));
-		if (tdict->ndict)
+		Dict* tdict = dict[dindex].ndict;
+		if (tdict->pdict->pdict)
 		{
-			tdict->ndict->pdict = tdict;
+			tdict->pdict->pdict->ndict = NULL;
 		}
-		tdict->pdict = pdict;
+		tdict->pdict = NULL;
+		memset(dict + dindex, 0, sizeof(Dict));
 
-		unsigned long long count = 0;
-		while (tdict->pdict)
-		{
-			tdict = tdict->pdict;
-		}
+		unsigned long long count = 1;
 		while (tdict->ndict)
 		{
 			count++;
@@ -421,14 +407,14 @@ void RemoveLinkDictEntry(Dict* dict, unsigned long long size, unsigned long long
 		if (ldict)
 		{
 			unsigned long long i = 0;
-			while (tdict->pdict)
+			while (tdict)
 			{
 				ldict[i] = *tdict;
-				tdict = tdict->pdict;
-				memset(tdict->ndict, 0, sizeof(Dict));
+				Dict* ttdict = tdict->pdict;
+				memset(tdict, 0, sizeof(Dict));
+				tdict = ttdict;
 				i++;
 			}
-			memset(tdict, 0, sizeof(Dict));
 			while (i)
 			{
 				i--;
