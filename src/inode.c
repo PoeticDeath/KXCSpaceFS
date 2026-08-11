@@ -115,7 +115,31 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     inode->i_blocks = (inode->i_size + 511) / 512;
     if (fn)
     {
-        set_nlink(inode, get_link_count(KMCSFS, fn));
+        unsigned long long nlink = get_link_count(KMCSFS, fn);
+        set_nlink(inode, nlink);
+        if (nlink > 1)
+        {
+            UNICODE_STRING_LOC fn_iter;
+            fn_iter.loc = 0;
+            while (true)
+            {
+                fn_iter = link_iter(KMCSFS, fn, fn_iter.loc);
+                if (!fn_iter.fn.Length)
+                {
+                    break;
+                }
+                unsigned long long ndindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn_iter.fn.Buffer, fn_iter.fn.Length);
+                struct inode* i = KMCSFS->dict[ndindex].inode;
+                if (i)
+                {
+                    if (i->i_mapping)
+                    {
+                        inode->i_mapping = i->i_mapping;
+                        break;
+                    }
+                }
+            }
+        }
     }
     else
     {
