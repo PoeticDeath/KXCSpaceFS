@@ -6,7 +6,7 @@ kxcspacefs-objs := fs.o super.o inode.o ioctl.o file.o dir.o Sha3.o Dict.o CSpac
 #EXTRA_CFLAGS := 
 #KBUILD_CFLAGS = 
 
-KDIR ?= /lib/modules/$(shell uname -r)/build
+KDIR ?= /lib/modules/$(shell realpath /boot/initrd.img | cut -b 18-)/build
 
 MKFS = build/mkfs.kxcspacefs
 
