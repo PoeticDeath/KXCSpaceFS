@@ -2146,12 +2146,16 @@ int make_link(KMCSpaceFS* KMCSFS, UNICODE_STRING* target, UNICODE_STRING fn)
 
 unsigned int get_link_count(KMCSpaceFS* KMCSFS, UNICODE_STRING* fn)
 {
-	unsigned int nlink = 1;
+	unsigned int nlink = 0;
 	unsigned long long loc = KMCSFS->tableend;
 	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length / sizeof(WCHAR));
 	if (KMCSFS->dict[dindex].index && dindex)
 	{
 		loc = KMCSFS->tableend + KMCSFS->dict[dindex].filenameloc;
+	}
+	else if (!dindex)
+	{
+		return nlink;
 	}
 	
 	while (KMCSFS->table[loc] != 255)
@@ -2168,6 +2172,7 @@ unsigned int get_link_count(KMCSpaceFS* KMCSFS, UNICODE_STRING* fn)
 				loc++;
 				break;
 			case 255:
+				nlink++;
 				return nlink;
 			default:
 				loc++;

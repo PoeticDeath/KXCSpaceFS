@@ -375,9 +375,10 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
     down_write(KMCSFS->op_lock);
-    if (get_link_count(KMCSFS, &fn) > 1)
+    unsigned long long nlink = get_link_count(KMCSFS, &fn);
+    if (nlink > 1)
     {
-        unsigned long long nlink = get_link_count(KMCSFS, &fn) - 1;
+        nlink--;
         UNICODE_STRING_LOC fn_iter;
         fn_iter.loc = 0;
         while (true)
@@ -392,7 +393,7 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
         }
         ret = delete_link(KMCSFS, &fn);
     }
-    else
+    else if (nlink)
     {
         set_nlink(dentry->d_inode, 0);
         ret = delete_file(sb->s_bdev, KMCSFS, fn, get_filename_index(fn, KMCSFS));
