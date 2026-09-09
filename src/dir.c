@@ -100,14 +100,6 @@ int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
 							break;
 						}
 					}
-					for (unsigned long long j = 0; j < filenamelen; j++)
-					{
-						if (rfn.Buffer[j] == ':')
-						{
-							isin = false;
-							break;
-						}
-					}
 					if (isin)
 					{
                         curoffset++;
