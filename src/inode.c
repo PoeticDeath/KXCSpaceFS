@@ -854,7 +854,6 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
         vfree(fn.Buffer);
         return PTR_ERR(inode);
     }
-    d_instantiate(dentry, inode);
 
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(fn, KMCSFS);
@@ -872,6 +871,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
         return -ENOSPC;
     }
     write_file(sb->s_bdev, KMCSFS, symname, 0, l, index, inode->i_size, &bytes_written, true);
+    d_instantiate(dentry, inode);
     up_write(KMCSFS->op_lock);
     vfree(fn.Buffer);
     return 0;
