@@ -279,24 +279,21 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
 
     down_write(KMCSFS->op_lock);
     int ret = create_file(sb->s_bdev, KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode, current_time(dir).tv_sec);
-    up_write(KMCSFS->op_lock);
 
     if (IS_ERR(ERR_PTR(ret)))
     {
         vfree(fn.Buffer);
+        up_write(KMCSFS->op_lock);
         return ERR_PTR(ret);
     }
 
-    down_read(KMCSFS->op_lock);
     inode = kxcspacefs_iget(sb, 0, &fn);
-    up_read(KMCSFS->op_lock);
     if (IS_ERR(inode))
     {
         vfree(fn.Buffer);
+        up_write(KMCSFS->op_lock);
         return inode;
     }
-
-    down_write(KMCSFS->op_lock);
 
     #if KXCSPACEFS_AT_LEAST(6, 3, 0)
     inode_init_owner(id, inode, dir, mode);
@@ -330,6 +327,8 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
 #endif
 {
     struct inode* inode;
+    struct super_block* sb = dir->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
     /* Check filename length */
     if (strlen(dentry->d_name.name) > KXCSPACEFS_FILENAME_LEN)
@@ -349,7 +348,9 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     }
 
     /* setup dentry */
+    down_write(KMCSFS->op_lock);
     d_instantiate(dentry, inode);
+    up_write(KMCSFS->op_lock);
 
     return 0;
 }
@@ -971,9 +972,8 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
         struct inode* i = kxcspacefs_iget(sb, 0, &fn_iter.fn);
         set_nlink(i, nlink);
     }
-    up_write(KMCSFS->op_lock);
-
     d_instantiate(dentry, inode);
+    up_write(KMCSFS->op_lock);
 
     return ret;
 }
