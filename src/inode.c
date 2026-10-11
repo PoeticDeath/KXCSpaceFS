@@ -51,7 +51,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     /* Fail if index is out of range */
     if (index >= KMCSFS->filecount || !index)
     {
-        pr_err("not in range\n");
+        //pr_err("not in range or not in fs\n");
         return 0;
     }
 
