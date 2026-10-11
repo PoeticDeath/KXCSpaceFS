@@ -277,13 +277,11 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
-    down_write(KMCSFS->op_lock);
     int ret = create_file(sb->s_bdev, KMCSFS, fn, dir->i_gid.val, dir->i_uid.val, mode, current_time(dir).tv_sec);
 
     if (IS_ERR(ERR_PTR(ret)))
     {
         vfree(fn.Buffer);
-        up_write(KMCSFS->op_lock);
         return ERR_PTR(ret);
     }
 
@@ -291,7 +289,6 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     if (IS_ERR(inode))
     {
         vfree(fn.Buffer);
-        up_write(KMCSFS->op_lock);
         return inode;
     }
 
@@ -309,7 +306,6 @@ static struct inode* kxcspacefs_new_inode(struct inode* dir, struct dentry* dent
     chtime(dir_index, time, 3, KMCSFS);
     dir->i_atime_sec = time;
     dir->i_mtime_sec = time;
-    up_write(KMCSFS->op_lock);
 
     return inode;
 }
@@ -336,6 +332,8 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
         return -ENAMETOOLONG;
     }
 
+    down_write(KMCSFS->op_lock);
+
     /* Get a new free inode */
     #if KXCSPACEFS_AT_LEAST(6, 3, 0)
     inode = kxcspacefs_new_inode(id, dir, dentry, mode);
@@ -344,11 +342,11 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     #endif
     if (IS_ERR(inode))
     {
+        up_write(KMCSFS->op_lock);
         return PTR_ERR(inode);
     }
 
     /* setup dentry */
-    down_write(KMCSFS->op_lock);
     d_instantiate(dentry, inode);
     up_write(KMCSFS->op_lock);
 
@@ -845,6 +843,8 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
+    down_write(KMCSFS->op_lock);
+
     #if KXCSPACEFS_AT_LEAST(6, 3, 0)
     struct inode* inode = kxcspacefs_new_inode(id, dir, dentry, S_IFLNK | S_IRWXUGO);
     #else
@@ -853,10 +853,10 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     if (IS_ERR(inode))
     {
         vfree(fn.Buffer);
+        up_write(KMCSFS->op_lock);
         return PTR_ERR(inode);
     }
 
-    down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(fn, KMCSFS);
     unsigned long long bytes_written = 0;
     if (find_block(sb->s_bdev, KMCSFS, index, l))
