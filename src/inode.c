@@ -51,6 +51,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     /* Fail if index is out of range */
     if (index >= KMCSFS->filecount || !index)
     {
+        pr_err("not in range\n");
         return 0;
     }
 
@@ -58,6 +59,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     inode = new_inode(sb);
     if (!inode)
     {
+        pr_err("out of memory\n");
         return ERR_PTR(-ENOMEM);
     }
 
