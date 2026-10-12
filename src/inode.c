@@ -375,6 +375,14 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
+    down_read(KMCSFS->op_lock);
+    if (!get_filename_index(fn, KMCSFS))
+    {
+        up_read(KMCSFS->op_lock);
+        return -ENOENT;
+    }
+    up_read(KMCSFS->op_lock);
+
     down_write(KMCSFS->op_lock);
     unsigned long long nlink = get_link_count(KMCSFS, &fn);
     if (nlink > 1)
@@ -454,6 +462,14 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     /* Get old filename */
     UNICODE_STRING* oldfn;
     oldfn = old_dentry->d_inode->i_private;
+
+    down_read(KMCSFS->op_lock);
+    if (!get_filename_index(*oldfn, KMCSFS))
+    {
+        up_read(KMCSFS->op_lock);
+        return -ENOENT;
+    }
+    up_read(KMCSFS->op_lock);
 
     /* Calculate new filename */
     UNICODE_STRING* olddir;
