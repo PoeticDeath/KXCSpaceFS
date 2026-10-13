@@ -220,7 +220,7 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
     loff_t pos = *ppos;
 
     down_read(KMCSFS->op_lock);
-    if (pos > inode->i_size)
+    if (pos >= inode->i_size)
     {
         up_read(KMCSFS->op_lock);
         return 0;
