@@ -740,7 +740,10 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
 
 int kxcspacefs_release(struct inode* inode, struct file* file)
 {
-    filemap_write_and_wait(inode->i_mapping);
+    if (inode->i_size)
+    {
+        filemap_write_and_wait(inode->i_mapping);
+    }
     return 0;
 }
 

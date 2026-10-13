@@ -80,23 +80,30 @@ void sync_read_phys(unsigned long long offset, unsigned long long length, char* 
 
 void sync_write_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev, KMCSpaceFS* KMCSFS)
 {
-	if ((offset + length) % 512)
+	if (length)
 	{
-		bdev_rw_virt(bdev, (offset + length) / 512, KMCSFS->writebuf + sector_align(offset % 512 + length, 512) - 512, 512, REQ_OP_READ);
-	}
-	if (offset % 512)
-	{
-		bdev_rw_virt(bdev, offset / 512, KMCSFS->writebuf, 512, REQ_OP_READ);
-	}
-	if (!access_ok(buf, length))
-	{
-		memmove(KMCSFS->writebuf + offset % 512, buf, length);
+		if ((offset + length) % 512)
+		{
+			bdev_rw_virt(bdev, (offset + length) / 512, KMCSFS->writebuf + sector_align(offset % 512 + length, 512) - 512, 512, REQ_OP_READ);
+		}
+		if (offset % 512)
+		{
+			bdev_rw_virt(bdev, offset / 512, KMCSFS->writebuf, 512, REQ_OP_READ);
+		}
+		if (!access_ok(buf, length))
+		{
+			memmove(KMCSFS->writebuf + offset % 512, buf, length);
+		}
+		else
+		{
+			copy_from_user(KMCSFS->writebuf + offset % 512, buf, length);
+		}
+		bdev_rw_virt(bdev, offset / 512, KMCSFS->writebuf, sector_align(offset % 512 + length, 512), REQ_OP_WRITE);
 	}
 	else
 	{
-		copy_from_user(KMCSFS->writebuf + offset % 512, buf, length);
+		dump_stack();
 	}
-	bdev_rw_virt(bdev, offset / 512, KMCSFS->writebuf, sector_align(offset % 512 + length, 512), REQ_OP_WRITE);
 }
 
 void init_maps(void)
