@@ -75,7 +75,14 @@ static unsigned long long sector_align(unsigned long long n, unsigned long long 
 
 void sync_read_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev)
 {
-	bdev_rw_virt(bdev, offset / 512, buf, sector_align(length, 512), REQ_OP_READ);
+	if (length)
+	{
+		bdev_rw_virt(bdev, offset / 512, buf, sector_align(length, 512), REQ_OP_READ);
+	}
+	else
+	{
+		dump_stack();
+	}
 }
 
 void sync_write_phys(unsigned long long offset, unsigned long long length, char* buf, struct block_device* bdev, KMCSpaceFS* KMCSFS)
