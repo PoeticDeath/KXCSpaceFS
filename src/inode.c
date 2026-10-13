@@ -954,24 +954,22 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
 
     down_write(KMCSFS->op_lock);
     int ret = make_link(KMCSFS, target, fn);
-    up_write(KMCSFS->op_lock);
     
     if (IS_ERR(ERR_PTR(ret)))
     {
         vfree(fn.Buffer);
+        up_write(KMCSFS->op_lock);
         return ret;
     }
 
-    down_read(KMCSFS->op_lock);
     struct inode* inode = kxcspacefs_iget(sb, 0, &fn);
-    up_read(KMCSFS->op_lock);
     vfree(fn.Buffer);
     if (IS_ERR(inode))
     {
+        up_write(KMCSFS->op_lock);
         return PTR_ERR(inode);
     }
 
-    down_write(KMCSFS->op_lock);
     unsigned long long time = current_time(dir).tv_sec;
     unsigned long long dir_index = get_filename_index(*pfn, KMCSFS);
     chtime(dir_index, time, 1, KMCSFS);
