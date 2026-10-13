@@ -16,7 +16,7 @@
  * This function is called by the VFS as ctx->pos changes.
  * Returns 0 on success.
  */
-int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
+int kxcspacefs_iterate_unlocked(struct file* dir, struct dir_context* ctx)
 {
     struct inode* inode = NULL;
 	if (ctx)
@@ -65,7 +65,6 @@ int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
         return -ENOMEM;
     }
 
-	down_read(KMCSFS->op_lock);
     unsigned long long tableoffset = 0;
     while (tableoffset < KMCSFS->filenamesend - KMCSFS->tableend + 1)
 	{
@@ -139,8 +138,19 @@ int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
     }
 
     vfree(rfn.Buffer);
-	up_read(KMCSFS->op_lock);
     return ret;
+}
+
+int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
+{
+	struct super_block* sb = dir->f_inode->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+
+	down_read(KMCSFS->op_lock);
+	int ret = kxcspacefs_iterate_unlocked(dir, ctx);
+	up_read(KMCSFS->op_lock);
+
+	return ret;
 }
 
 int kxcspacefs_dir_fsync(struct file* file, loff_t start, loff_t end, int datasync)

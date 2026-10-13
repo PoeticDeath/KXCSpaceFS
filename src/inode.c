@@ -355,8 +355,7 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     return 0;
 }
 
-/* Remove the file */
-static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
+static int kxcspacefs_unlink_unlocked(struct inode* dir, struct dentry* dentry)
 {
     struct super_block* sb = dir->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
@@ -375,15 +374,11 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
-    down_read(KMCSFS->op_lock);
     if (!get_filename_index(fn, KMCSFS))
     {
-        up_read(KMCSFS->op_lock);
         return -ENOENT;
     }
-    up_read(KMCSFS->op_lock);
 
-    down_write(KMCSFS->op_lock);
     unsigned long long nlink = get_link_count(KMCSFS, &fn);
     if (nlink > 1)
     {
@@ -415,24 +410,48 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     chtime(dir_index, time, 3, KMCSFS);
     dir->i_atime_sec = time;
     dir->i_mtime_sec = time;
+
+    return ret;
+}
+
+/* Remove the file */
+static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
+{
+    struct super_block* sb = dir->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+
+    down_write(KMCSFS->op_lock);
+    int ret = kxcspacefs_unlink_unlocked(dir, dentry);
     up_write(KMCSFS->op_lock);
 
     return ret;
 }
 
-static int kxcspacefs_rmdir(struct inode* dir, struct dentry* dentry)
+static int kxcspacefs_rmdir_unlocked(struct inode* dir, struct dentry* dentry)
 {
     struct super_block* sb = dir->i_sb;
 
     /* If the directory is not empty, fail */
-    int ret = kxcspacefs_iterate((void*)dentry->d_inode, NULL);
+    int ret = kxcspacefs_iterate_unlocked((void*)dentry->d_inode, NULL);
     if (IS_ERR(ERR_PTR(ret)))
     {
         return ret;
     }
 
     /* Remove directory with unlink */
-    return kxcspacefs_unlink(dir, dentry);
+    return kxcspacefs_unlink_unlocked(dir, dentry);
+}
+
+static int kxcspacefs_rmdir(struct inode* dir, struct dentry* dentry)
+{
+    struct super_block* sb = dir->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+
+    down_write(KMCSFS->op_lock);
+    int ret = kxcspacefs_rmdir_unlocked(dir, dentry);
+    up_write(KMCSFS->op_lock);
+
+    return ret;
 }
 
 #if KXCSPACEFS_AT_LEAST(6, 3, 0)
@@ -463,13 +482,12 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     UNICODE_STRING* oldfn;
     oldfn = old_dentry->d_inode->i_private;
 
-    down_read(KMCSFS->op_lock);
+    down_write(KMCSFS->op_lock);
     if (!get_filename_index(*oldfn, KMCSFS))
     {
-        up_read(KMCSFS->op_lock);
+        up_write(KMCSFS->op_lock);
         return -ENOENT;
     }
-    up_read(KMCSFS->op_lock);
 
     /* Calculate new filename */
     UNICODE_STRING* olddir;
@@ -483,6 +501,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     if (!nfn.Buffer)
     {
         pr_err("out of memory\n");
+        up_write(KMCSFS->op_lock);
         return -ENOMEM;
     }
     memmove(nfn.Buffer, newdir->Buffer, newdir->Length);
@@ -490,36 +509,35 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     memmove(nfn.Buffer + (newdir->Length > sizeof(WCHAR) ? newdir->Length : 0) + 1, new_dentry->d_name.name, new_dentry->d_name.len);
 
     /* Fail if new_dentry exists */
-    down_read(KMCSFS->op_lock);
     ret = PTR_ERR(kxcspacefs_iget(sb, 0, &nfn));
-    up_read(KMCSFS->op_lock);
     if (ret)
     {
         if (flags & RENAME_NOREPLACE)
         {
             vfree(nfn.Buffer);
+            up_write(KMCSFS->op_lock);
             return -EEXIST;
         }
         else
         {
             if (S_ISDIR(new_dentry->d_inode->i_mode))
             {
-                ret = kxcspacefs_rmdir(new_dir, new_dentry);
+                ret = kxcspacefs_rmdir_unlocked(new_dir, new_dentry);
             }
             else
             {
-                ret = kxcspacefs_unlink(new_dir, new_dentry);
+                ret = kxcspacefs_unlink_unlocked(new_dir, new_dentry);
             }
 
             if (IS_ERR(ERR_PTR(ret)))
             {
                 vfree(nfn.Buffer);
+                up_write(KMCSFS->op_lock);
                 return ret;
             }
         }
     }
 
-    down_write(KMCSFS->op_lock);
     ret = rename_file(sb->s_bdev, KMCSFS, *oldfn, nfn);
     if (!IS_ERR(ERR_PTR(ret)))
     {

@@ -25,6 +25,7 @@ void kxcspacefs_kill_sb(struct super_block* sb);
 /* inode functions */
 struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, UNICODE_STRING* fn);
 int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx);
+int kxcspacefs_iterate_unlocked(struct file* dir, struct dir_context* ctx);
 ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, loff_t* ppos);
 
 /* dentry function */
