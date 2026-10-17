@@ -87,6 +87,11 @@ static void kxcspacefs_evict_inode(struct inode* inode)
 	{
 		if (fn->Buffer)
 		{
+			if (inode->i_size && virt_addr_valid(inode->i_mapping))
+    		{
+        		filemap_write_and_wait(inode->i_mapping);
+				truncate_inode_pages_final(&inode->i_data);
+    		}
 			KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
 			down_read(KMCSFS->op_lock);
 			unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
@@ -97,10 +102,6 @@ static void kxcspacefs_evict_inode(struct inode* inode)
 		}
 		vfree(fn);
 		inode->i_private = NULL;
-	}
-	if (virt_addr_valid(inode->i_mapping))
-	{
-		truncate_inode_pages_final(inode->i_mapping);
 	}
 	clear_inode(inode);
 }
