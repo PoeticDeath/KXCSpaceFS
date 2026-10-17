@@ -98,7 +98,10 @@ static void kxcspacefs_evict_inode(struct inode* inode)
 		vfree(fn);
 		inode->i_private = NULL;
 	}
-	truncate_inode_pages_final(&inode->i_data);
+	if (virt_addr_valid(inode->i_mapping))
+	{
+		truncate_inode_pages_final(inode->i_mapping);
+	}
 	clear_inode(inode);
 }
 
