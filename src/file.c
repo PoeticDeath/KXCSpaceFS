@@ -740,7 +740,7 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
 
 int kxcspacefs_release(struct inode* inode, struct file* file)
 {
-    if (inode->i_size)
+    if (inode->i_size && virt_addr_valid(inode->i_mapping))
     {
         filemap_write_and_wait(inode->i_mapping);
     }
