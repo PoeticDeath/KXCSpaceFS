@@ -424,7 +424,6 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             folio_clear_dirty(folio);
             folio_buffers_clear_dirty(folio);
             folio_unlock(folio);
-            folio_put(folio);
         }
     }
     if (buf)
