@@ -80,23 +80,46 @@ static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
     return 0;
 }
 
+static int kxcspacefs_drop_inode(struct inode* inode)
+{
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
+    UNICODE_STRING* fn = inode->i_private;
+    bool drop_it = false;
+
+    /* Lock to prevent concurrent lookups in kxcspacefs_iget */
+    down_write(KMCSFS->op_lock);
+    if (fn)
+	{
+		if (fn->Buffer)
+		{
+        	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+
+        	/* If found in the internal dictionary, clear the reference */
+        	if (KMCSFS->dict[dindex].inode == inode)
+			{
+            	KMCSFS->dict[dindex].inode = NULL;
+            	drop_it = true; 
+        	}
+		}
+    }
+    up_write(KMCSFS->op_lock);
+
+    /* 
+     * Return true to tell VFS to proceed directly to evict_inode.
+     * Return false if the inode needs to remain alive (generic default behaves this way if link count > 0).
+     */
+    return drop_it || !inode->i_nlink || inode_unhashed(inode);
+}
+
 static void kxcspacefs_evict_inode(struct inode* inode)
 {
+	filemap_write_and_wait(&inode->i_data);
+	truncate_inode_pages_final(&inode->i_data);
 	UNICODE_STRING* fn = inode->i_private;
 	if (fn)
 	{
 		if (fn->Buffer)
 		{
-			if (inode->i_size && virt_addr_valid(inode->i_mapping))
-    		{
-        		filemap_write_and_wait(inode->i_mapping);
-				truncate_inode_pages_final(&inode->i_data);
-    		}
-			KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
-			down_read(KMCSFS->op_lock);
-			unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
-			KMCSFS->dict[dindex].inode = NULL;
-			up_read(KMCSFS->op_lock);
 			vfree(fn->Buffer);
 			fn->Buffer = NULL;
 		}
@@ -112,6 +135,7 @@ static struct super_operations kxcspacefs_super_ops =
     .sync_fs = kxcspacefs_sync_fs,
     .statfs = kxcspacefs_statfs,
 	.evict_inode = kxcspacefs_evict_inode,
+	.drop_inode = kxcspacefs_drop_inode,
 };
 
 /* Fill the struct superblock from partition superblock */

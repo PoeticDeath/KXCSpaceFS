@@ -192,19 +192,8 @@ static int kxcspacefs_open(struct inode* inode, struct file* filp)
         UNICODE_STRING* fn = inode->i_private;
         dealloc(KMCSFS, get_filename_index(*fn, KMCSFS), inode->i_size, 0);
         /* Update inode metadata */
-        UNICODE_STRING_LOC fn_iter;
-        fn_iter.loc = 0;
-        while (true)
-        {
-            fn_iter = link_iter(KMCSFS, fn, fn_iter.loc);
-            if (!fn_iter.fn.Length)
-            {
-                break;
-            }
-            struct inode* i = kxcspacefs_iget(inode->i_sb, 0, &fn_iter.fn);
-            i->i_size = 0;
-            i->i_blocks = 0;
-        }
+        inode->i_size = 0;
+        inode->i_blocks = 0;
     }
     up_write(KMCSFS->op_lock);
     return 0;
@@ -263,19 +252,8 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
     {
         if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
         {
-            UNICODE_STRING_LOC fn_iter;
-            fn_iter.loc = 0;
-            while (true)
-            {
-                fn_iter = link_iter(KMCSFS, fn, fn_iter.loc);
-                if (!fn_iter.fn.Length)
-                {
-                    break;
-                }
-                struct inode* i = kxcspacefs_iget(sb, 0, &fn_iter.fn);
-                i->i_size = plen;
-                i->i_blocks = (i->i_size + 511) / 512;
-            }
+            inode->i_size = plen;
+            inode->i_blocks = (inode->i_size + 511) / 512;
         }
         else
         {
@@ -479,19 +457,8 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
         unsigned long long index = get_filename_index(*fn, KMCSFS);
         if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
         {
-            UNICODE_STRING_LOC fn_iter;
-            fn_iter.loc = 0;
-            while (true)
-            {
-                fn_iter = link_iter(KMCSFS, fn, fn_iter.loc);
-                if (!fn_iter.fn.Length)
-                {
-                    break;
-                }
-                struct inode* i = kxcspacefs_iget(sb, 0, &fn_iter.fn);
-                i->i_size = plen;
-                i->i_blocks = (i->i_size + 511) / 512;
-            }
+            inode->i_size = plen;
+            inode->i_blocks = (inode->i_size + 511) / 512;
         }
         else
         {
@@ -713,19 +680,8 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
         unsigned long long index = get_filename_index(*fn, KMCSFS);
         if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
         {
-            UNICODE_STRING_LOC fn_iter;
-            fn_iter.loc = 0;
-            while (true)
-            {
-                fn_iter = link_iter(KMCSFS, fn, fn_iter.loc);
-                if (!fn_iter.fn.Length)
-                {
-                    break;
-                }
-                struct inode* i = kxcspacefs_iget(sb, 0, &fn_iter.fn);
-                i->i_size = plen;
-                i->i_blocks = (i->i_size + 511) / 512;
-            }
+            inode->i_size = plen;
+            inode->i_blocks = (inode->i_size + 511) / 512;
         }
         else
         {
@@ -740,10 +696,7 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
 
 int kxcspacefs_release(struct inode* inode, struct file* file)
 {
-    if (inode->i_size && virt_addr_valid(inode->i_mapping))
-    {
-        filemap_write_and_wait(inode->i_mapping);
-    }
+    filemap_write_and_wait(&inode->i_data);
     return 0;
 }
 
