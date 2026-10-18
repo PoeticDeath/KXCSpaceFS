@@ -121,7 +121,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     inode->i_mode = chmode(index, 0, KMCSFS);
     i_uid_write(inode, chuid(index, 0, KMCSFS, false));
     i_gid_write(inode, chgid(index, 0, KMCSFS, false));
-    inode->i_size = get_file_size(index, KMCSFS);
+    inode->i_size = get_file_size(index, dindex, KMCSFS);
 
 #if KXCSPACEFS_AT_LEAST(6, 6, 0)
     inode_set_ctime(inode, (time64_t) chtime(index, 0, 4, KMCSFS), 0);
@@ -172,7 +172,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     {
         unsigned long long bytes_read = 0;
         char buf[sizeof(dev_t)] = {0};
-        read_file(sb->s_bdev, KMCSFS, buf, 0, sizeof(dev_t), index, &bytes_read);
+        read_file(sb->s_bdev, KMCSFS, buf, 0, sizeof(dev_t), index, &bytes_read, dindex);
         memmove(&inode->i_rdev, buf, sizeof(dev_t));
         init_special_inode(inode, inode->i_mode, inode->i_rdev);
     }
@@ -629,6 +629,7 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
 
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
+    unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
 
     if (iattr->ia_valid & ATTR_MODE)
     {
@@ -668,12 +669,12 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
             return -EFBIG;
         }
 
-        unsigned long long size = get_file_size(index, KMCSFS);
+        unsigned long long size = get_file_size(index, dindex, KMCSFS);
 		if (size != iattr->ia_size)
 		{
             if (size < iattr->ia_size)
             {
-                if (!find_block(sb->s_bdev, KMCSFS, index, iattr->ia_size - size))
+                if (!find_block(sb->s_bdev, KMCSFS, index, iattr->ia_size - size, dindex))
                 {
                     up_write(KMCSFS->op_lock);
                     return -ENOSPC;
@@ -681,17 +682,17 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
             }
             else
             {
-                dealloc(KMCSFS, index, size, iattr->ia_size);
+                dealloc(KMCSFS, index, size, iattr->ia_size, dindex);
                 if (iattr->ia_size % KMCSFS->sectorsize)
                 {
-                    if (!find_block(sb->s_bdev, KMCSFS, index, iattr->ia_size % KMCSFS->sectorsize))
+                    if (!find_block(sb->s_bdev, KMCSFS, index, iattr->ia_size % KMCSFS->sectorsize, dindex))
                     {
                         up_write(KMCSFS->op_lock);
                         return -ENOSPC;
                     }
                 }
             }
-            inode->i_size = get_file_size(index, KMCSFS);
+            inode->i_size = get_file_size(index, dindex, KMCSFS);
             inode->i_blocks = (inode->i_size + 511) / 512;
         }
 	}
@@ -714,9 +715,10 @@ static int kxcspacefs_fiemap(struct inode* inode, struct fiemap_extent_info* fie
 
     down_read(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
-    unsigned long long maxsize = get_file_size(index, KMCSFS);
+    unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+    unsigned long long maxsize = get_file_size(index, dindex, KMCSFS);
     maxsize -= maxsize % KMCSFS->sectorsize;
-    unsigned long long loc = get_strloc(index, KMCSFS);
+    unsigned long long loc = get_strloc(index, dindex, KMCSFS);
 
 	bool notzero = false;
 	bool multisector = false;
@@ -835,7 +837,8 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
     UNICODE_STRING* fn = dentry->d_inode->i_private;
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
-    ret = find_block(sb->s_bdev, KMCSFS, index, sizeof(dev_t));
+    unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+    ret = find_block(sb->s_bdev, KMCSFS, index, sizeof(dev_t), dindex);
     if (ret)
     {
         dentry->d_inode->i_size = sizeof(dev_t);
@@ -843,7 +846,7 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
         unsigned long long bytes_written = 0;
         char buf[sizeof(dev_t)] = {0};
         memmove(buf, &dev, sizeof(dev_t));
-        ret = write_file(sb->s_bdev, KMCSFS, buf, 0, sizeof(dev_t), index, dentry->d_inode->i_size, &bytes_written, true);
+        ret = write_file(sb->s_bdev, KMCSFS, buf, 0, sizeof(dev_t), index, dentry->d_inode->i_size, &bytes_written, dindex, true);
     }
     else
     {
@@ -922,8 +925,9 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     }
 
     unsigned long long index = get_filename_index(fn, KMCSFS);
+    unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn.Buffer, fn.Length);
     unsigned long long bytes_written = 0;
-    if (find_block(sb->s_bdev, KMCSFS, index, l))
+    if (find_block(sb->s_bdev, KMCSFS, index, l, dindex))
     {
         inode->i_size = l;
         inode->i_blocks = (inode->i_size + 511) / 512;
@@ -935,7 +939,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
         vfree(fn.Buffer);
         return -ENOSPC;
     }
-    write_file(sb->s_bdev, KMCSFS, symname, 0, l, index, inode->i_size, &bytes_written, true);
+    write_file(sb->s_bdev, KMCSFS, symname, 0, l, index, inode->i_size, &bytes_written, dindex, true);
     d_instantiate(dentry, inode);
     up_write(KMCSFS->op_lock);
     vfree(fn.Buffer);
@@ -959,7 +963,8 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     memset(data, 0, inode->i_size + 1);
     
     unsigned long long bytes_read = 0;
-    int ret = read_file(sb->s_bdev, KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read);
+    unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+    int ret = read_file(sb->s_bdev, KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read, dindex);
     up_read(KMCSFS->op_lock);
     if (IS_ERR(ERR_PTR(ret)))
     {

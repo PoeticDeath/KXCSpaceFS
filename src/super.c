@@ -69,7 +69,7 @@ static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
     stat->f_bsize = KMCSFS->sectorsize;
     stat->f_blocks = KMCSFS->size / KMCSFS->sectorsize;
     down_read(KMCSFS->op_lock);
-    find_block(sb->s_bdev, KMCSFS, 0, 0);
+    find_block(sb->s_bdev, KMCSFS, 0, 0, 0);
     up_read(KMCSFS->op_lock);
     stat->f_bfree = stat->f_blocks - KMCSFS->used_blocks;
     stat->f_bavail = stat->f_blocks - KMCSFS->used_blocks;
@@ -338,7 +338,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 		    {
 			    if ((KMCSFS->table[i] & 0xff) == 255)
 			    {
-				    AddDictEntry(&KMCSFS->dict, filename, i - len - KMCSFS->tableend, len, &KMCSFS->CurDictSize, &KMCSFS->DictSize, count, false, false);
+				    AddDictEntry(&KMCSFS->dict, filename, i - len - KMCSFS->tableend, len, &KMCSFS->CurDictSize, &KMCSFS->DictSize, count, 0, false, false);
 				    if (!(count % 1000))
 				    {
 					    pr_err("%llu / %llu indices computed.\n", count, KMCSFS->filecount);
@@ -349,7 +349,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 			    }
 			    else if ((KMCSFS->table[i] & 0xff) == 42)
 			    {
-				    AddDictEntry(&KMCSFS->dict, filename, i - len - KMCSFS->tableend, len, &KMCSFS->CurDictSize, &KMCSFS->DictSize, count, false, false);
+				    AddDictEntry(&KMCSFS->dict, filename, i - len - KMCSFS->tableend, len, &KMCSFS->CurDictSize, &KMCSFS->DictSize, count, 0, false, false);
 				    if (!(count % 1000))
 				    {
 					    pr_err("%llu / %llu indices computed.\n", count, KMCSFS->filecount);

@@ -233,7 +233,7 @@ unsigned long long get_filename_index(UNICODE_STRING FileName, KMCSpaceFS* KMCSF
 				j = 0;
 				if (found)
 				{
-					AddDictEntry(&KMCSFS->dict, FileName.Buffer, loc - FileNameLen, FileNameLen, &KMCSFS->CurDictSize, &KMCSFS->DictSize, i - 1, false, false);
+					AddDictEntry(&KMCSFS->dict, FileName.Buffer, loc - FileNameLen, FileNameLen, &KMCSFS->CurDictSize, &KMCSFS->DictSize, i - 1, 0, false, false);
 
 					return i - 1;
 				}
@@ -404,9 +404,17 @@ unsigned toint(unsigned char c)
 	}
 }
 
-unsigned long long get_strloc(unsigned long long index, KMCSpaceFS* KMCSFS)
+unsigned long long get_strloc(unsigned long long index, unsigned long long dindex, KMCSpaceFS* KMCSFS)
 {
 	unsigned long long loc = 0;
+	if (dindex)
+	{
+		loc = KMCSFS->dict[dindex].tablestrloc;
+		if (loc)
+		{
+			return loc;
+		}
+	}
 	if (index)
 	{
 		if (index > KMCSFS->filecount)
@@ -427,6 +435,7 @@ unsigned long long get_strloc(unsigned long long index, KMCSpaceFS* KMCSFS)
 				if (loc == index)
 				{
 					loc = i + 1;
+					KMCSFS->dict[dindex].tablestrloc = loc;
 					break;
 				}
 			}
@@ -435,9 +444,9 @@ unsigned long long get_strloc(unsigned long long index, KMCSpaceFS* KMCSFS)
 	return loc;
 }
 
-unsigned long long get_file_size(unsigned long long index, KMCSpaceFS* KMCSFS)
+unsigned long long get_file_size(unsigned long long index, unsigned long long dindex, KMCSpaceFS* KMCSFS)
 {
-	unsigned long long loc = get_strloc(index, KMCSFS);
+	unsigned long long loc = get_strloc(index, dindex, KMCSFS);
 
 	bool notzero = false;
 	bool multisector = false;
@@ -530,9 +539,9 @@ unsigned long long get_file_size(unsigned long long index, KMCSpaceFS* KMCSFS)
 	return filesize;
 }
 
-int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read)
+int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read, unsigned long long dindex)
 {
-	unsigned long long loc = get_strloc(index, KMCSFS);
+	unsigned long long loc = get_strloc(index, dindex, KMCSFS);
 
 	bool locked = false;
 	uint8_t* buf = NULL;//kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
@@ -751,9 +760,9 @@ int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsi
 	return 0;
 }
 
-int write_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long size, unsigned long long* bytes_written, bool kern)
+int write_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long size, unsigned long long* bytes_written, unsigned long long dindex, bool kern)
 {
-	unsigned long long loc = get_strloc(index, KMCSFS);
+	unsigned long long loc = get_strloc(index, dindex, KMCSFS);
 
 	bool init = true;
 	bool notzero = false;
@@ -1082,7 +1091,7 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	vfree(KMCSFS->table);
 	KMCSFS->table = newtable;
 
-	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->filenamesend - KMCSFS->tableend + 1, fn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, KMCSFS->filecount, false, false);
+	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->filenamesend - KMCSFS->tableend + 1, fn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, KMCSFS->filecount, KMCSFS->tablestrlen - 1, false, false);
 
 	KMCSFS->filenamesend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend + 1 + fn.Length / sizeof(WCHAR);
 	KMCSFS->tableend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2;
@@ -1096,11 +1105,11 @@ int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	return 0;
 }
 
-void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, unsigned long long newsize)
+void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, unsigned long long newsize, unsigned long long dindex)
 {
 	if (size > newsize)
 	{
-		unsigned long long loc = get_strloc(index, KMCSFS);
+		unsigned long long loc = get_strloc(index, dindex, KMCSFS);
 
 		bool notzero = false;
 		bool multisector = false;
@@ -1111,6 +1120,7 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 		unsigned long long int3 = 0;
 		unsigned long long filesize = 0;
 		unsigned long long offset = loc;
+		unsigned long long tablelen = 0;
 
 		for (unsigned long long i = loc; i < KMCSFS->tablestrlen; i++)
 		{
@@ -1140,6 +1150,7 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 									unsigned num0len = strlen(num0);
 									memmove(KMCSFS->tablestr + offset + num0len, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i + num0len);
 									memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset + num0len, 0, i - offset - num0len);
+									tablelen += i - offset - num0len;
 									KMCSFS->tablestrlen -= i - offset - num0len;
 									i = offset + num0len;
 								}
@@ -1154,6 +1165,7 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 									memmove(KMCSFS->tablestr + offset + num0len + 1, num1, num1len);
 									memmove(KMCSFS->tablestr + offset + num0len + 1 + num1len, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i + num0len + 1 + num1len);
 									memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset + num0len + 1 + num1len, 0, i - offset - num0len - 1 - num1len);
+									tablelen += i - offset - num0len - 1 - num1len;
 									KMCSFS->tablestrlen -= i - offset - num0len - 1 - num1len;
 									i = offset + num0len + 1 + num1len;
 								}
@@ -1162,6 +1174,7 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 							{
 								memmove(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
 								memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, 0, i - offset);
+								tablelen += i - offset;
 								KMCSFS->tablestrlen -= i - offset;
 								i = offset;
 							}
@@ -1179,6 +1192,7 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 						{
 							memmove(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
 							memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, 0, i - offset);
+							tablelen += i - offset;
 							KMCSFS->tablestrlen -= i - offset;
 							i = offset;
 						}
@@ -1195,6 +1209,7 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 						{
 							memmove(KMCSFS->tablestr + offset, KMCSFS->tablestr + i, KMCSFS->tablestrlen - i);
 							memset(KMCSFS->tablestr + KMCSFS->tablestrlen - i + offset, 0, i - offset);
+							tablelen += i - offset;
 							KMCSFS->tablestrlen -= i - offset;
 							i = offset;
 						}
@@ -1259,12 +1274,20 @@ void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long si
 			}
 		}
 
+		for (unsigned long long i = 0; i < KMCSFS->DictSize; i++)
+		{
+			if (KMCSFS->dict[i].tablestrloc > loc)
+			{
+				KMCSFS->dict[i].tablestrloc -= tablelen;
+			}
+		}
+
 		KMCSFS->used_blocks -= size / KMCSFS->sectorsize;
 		KMCSFS->used_blocks += newsize / KMCSFS->sectorsize;
 	}
 }
 
-bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size)
+bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, unsigned long long dindex)
 {
 	if (size)
 	{
@@ -1388,25 +1411,26 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 		unsigned long long loc = 0;
 		if (!(cursize % KMCSFS->sectorsize))
 		{
-			loc = get_strloc(index + 1, KMCSFS) - 1;
+			loc = get_strloc(index + 1, 0, KMCSFS) - 1;
 		}
 
 		unsigned char* tempdata = NULL;
 		unsigned long long newoffset = 0;
 		unsigned long long cursector = 0;
 		unsigned long long blocksneeded = (size + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize;
+		unsigned long long tablelen = 0;
 		for (unsigned long long i = 0; i < blocksneeded; i++)
 		{
 			if (cursize % KMCSFS->sectorsize)
 			{ // Last block was part sector
 				tempdata = KMCSFS->findblockbuf;
 				sync_read_phys(KMCSFS->size - endsector * KMCSFS->sectorsize - KMCSFS->sectorsize + endoffset - endoffset % 512, endrlength, tempdata, bdev);
-				dealloc(KMCSFS, index, cursize, cursize - cursize % KMCSFS->sectorsize);
+				dealloc(KMCSFS, index, cursize, cursize - cursize % KMCSFS->sectorsize, dindex);
 				used_bytes[endsector] -= cursize % KMCSFS->sectorsize;
 				size += cursize % KMCSFS->sectorsize;
 				blocksneeded = (size + KMCSFS->sectorsize - 1) / KMCSFS->sectorsize;
 				cursize -= cursize % KMCSFS->sectorsize;
-				loc = get_strloc(index + 1, KMCSFS) - 1;
+				loc = get_strloc(index + 1, 0, KMCSFS) - 1;
 			}
 			if (!(size % KMCSFS->sectorsize) || i < blocksneeded - 1)
 			{ // Full sector allocation
@@ -1433,6 +1457,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 							vfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += numlen + 1;
+							tablelen += numlen + 1;
 							loc += numlen + 1;
 							cursize += KMCSFS->sectorsize;
 							used_bytes[cursector] += KMCSFS->sectorsize;
@@ -1457,6 +1482,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 							vfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += numlen;
+							tablelen += numlen;
 							loc += numlen;
 							cursize += KMCSFS->sectorsize;
 							used_bytes[cursector] += KMCSFS->sectorsize;
@@ -1502,6 +1528,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 							vfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += num1len + num3len + 4;
+							tablelen += num1len + num3len + 4;
 							loc += num1len + num3len + 4;
 							cursize += size % KMCSFS->sectorsize;
 							used_bytes[cursector] += size % KMCSFS->sectorsize;
@@ -1536,6 +1563,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 							vfree(KMCSFS->tablestr);
 							KMCSFS->tablestr = newtable;
 							KMCSFS->tablestrlen += num1len + num3len + 3;
+							tablelen += num1len + num3len + 3;
 							loc += num1len + num3len + 3;
 							cursize += size % KMCSFS->sectorsize;
 							used_bytes[cursector] += size % KMCSFS->sectorsize;
@@ -1731,6 +1759,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 								vfree(KMCSFS->tablestr);
 								KMCSFS->tablestr = newtable;
 								KMCSFS->tablestrlen += num1len + 1 + num2len + 1 + num3len + 1;
+								tablelen += num1len + 1 + num2len + 1 + num3len + 1;
 								loc += num1len + 1 + num2len + 1 + num3len + 1;
 								cursize += size % KMCSFS->sectorsize;
 								used_bytes[cursector] += size % KMCSFS->sectorsize;
@@ -1771,6 +1800,7 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 								vfree(KMCSFS->tablestr);
 								KMCSFS->tablestr = newtable;
 								KMCSFS->tablestrlen += num1len + 1 + num2len + 1 + num3len;
+								tablelen += num1len + 1 + num2len + 1 + num3len;
 								loc += num1len + 1 + num2len + 1 + num3len;
 								cursize += size % KMCSFS->sectorsize;
 								used_bytes[cursector] += size % KMCSFS->sectorsize;
@@ -1837,6 +1867,13 @@ bool find_block(struct block_device* bdev, KMCSpaceFS* KMCSFS, unsigned long lon
 			KMCSFS->tableend = 5 + (KMCSFS->tablestrlen + KMCSFS->tablestrlen % 2) / 2;
 			vfree(KMCSFS->table);
 			KMCSFS->table = newtable;
+			for (unsigned long long i = 0; i < KMCSFS->DictSize; i++)
+			{
+				if (KMCSFS->dict[i].tablestrloc > get_strloc(index, dindex, KMCSFS))
+				{
+					KMCSFS->dict[i].tablestrloc += tablelen;
+				}
+			}
 			return true;
 		}
 		return false;
@@ -1963,7 +2000,8 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 		return -ENOMEM;
 	}
 	memset(newtablestr, 0, KMCSFS->tablestrlen);
-	unsigned long long tableloc = get_strloc(index, KMCSFS);
+	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, filename.Buffer, filename.Length / sizeof(WCHAR));
+	unsigned long long tableloc = get_strloc(index, dindex, KMCSFS);
 	unsigned long long tablelen = 0;
 	for (unsigned long long i = tableloc; i < KMCSFS->tablestrlen; i++)
 	{
@@ -1973,8 +2011,14 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 			break;
 		}
 	}
+	for (unsigned long long i = 0; i < KMCSFS->DictSize; i++)
+	{
+		if (KMCSFS->dict[i].tablestrloc > tableloc)
+		{
+			KMCSFS->dict[i].tablestrloc -= tablelen;
+		}
+	}
 	unsigned long long loc = KMCSFS->tableend;
-	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, filename.Buffer, filename.Length / sizeof(WCHAR));
 	if (index && dindex)
 	{
 		loc = KMCSFS->tableend + KMCSFS->dict[dindex].filenameloc - 1;
@@ -2015,12 +2059,12 @@ int delete_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fi
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1), KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount, 11 * index);
 	memmove(newtable + 5 + (tablestrlen + tablestrlen % 2) / 2 + KMCSFS->filenamesend - KMCSFS->tableend - len + 2 + 24 * (KMCSFS->filecount - 1) + 11 * index, KMCSFS->table + KMCSFS->filenamesend + 2 + 24 * KMCSFS->filecount + 11 * (index + 1), 11 * (KMCSFS->filecount - index - 1));
 
+	KMCSFS->used_blocks -= get_file_size(index, dindex, KMCSFS) / KMCSFS->sectorsize;
 	if (dindex)
 	{
 		RemoveDictEntry(KMCSFS->dict, KMCSFS->DictSize, dindex, filename.Length / sizeof(WCHAR), &KMCSFS->CurDictSize);
 	}
 
-	KMCSFS->used_blocks -= get_file_size(index, KMCSFS) / KMCSFS->sectorsize;
 	vfree(KMCSFS->table);
 	KMCSFS->table = newtable;
 	KMCSFS->tablesize = 1 + tablesize;
@@ -2088,8 +2132,9 @@ int rename_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn
 	{
 		unsigned long long filenameloc = KMCSFS->dict[dindex].filenameloc;
 		struct inode* inode = KMCSFS->dict[dindex].inode;
+		unsigned long long tablestrloc = KMCSFS->dict[dindex].tablestrloc;
 		RemoveLinkDictEntry(KMCSFS->dict, KMCSFS->DictSize, dindex, fn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize);
-		AddDictEntry(&KMCSFS->dict, nfn.Buffer, filenameloc, nfn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, false, true);
+		AddDictEntry(&KMCSFS->dict, nfn.Buffer, filenameloc, nfn.Length / sizeof(WCHAR), &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, tablestrloc, false, true);
 		dindex = FindDictEntry(KMCSFS->dict, newtable, KMCSFS->tableend, KMCSFS->DictSize, nfn.Buffer, nfn.Length / sizeof(WCHAR));
 		if (dindex)
 		{
@@ -2157,7 +2202,7 @@ int make_link(KMCSpaceFS* KMCSFS, UNICODE_STRING* target, UNICODE_STRING fn)
 	}
 	memmove(newtable + loc + 1 + fn.Length / sizeof(WCHAR), KMCSFS->table + loc, KMCSFS->filenamesend - loc + 2 + 35 * KMCSFS->filecount);
 
-	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->dict[dindex].filenameloc + target->Length / sizeof(WCHAR) + 1, fn.Length, &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, false, true);
+	AddDictEntry(&KMCSFS->dict, fn.Buffer, KMCSFS->dict[dindex].filenameloc + target->Length / sizeof(WCHAR) + 1, fn.Length, &KMCSFS->CurDictSize, &KMCSFS->DictSize, index, KMCSFS->dict[dindex].tablestrloc, false, true);
 
 	KMCSFS->filenamesend = KMCSFS->filenamesend + fn.Length / sizeof(WCHAR) + 1;
 	KMCSFS->extratablesize = extratablesize;

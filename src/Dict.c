@@ -72,6 +72,7 @@ startover:
 			ndict[j].hash = hash;
 			ndict[j].index = dict[i].index;
 			ndict[j].inode = dict[i].inode;
+			ndict[j].tablestrloc = dict[i].tablestrloc;
 			if (taken)
 			{
 				ndict[j].pdict = tdict;
@@ -82,7 +83,7 @@ startover:
 	return ndict;
 }
 
-bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, unsigned long long filenamelen, unsigned long long* cursize, unsigned long long* size, unsigned long long index, bool createscan, bool linkscan)
+bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, unsigned long long filenamelen, unsigned long long* cursize, unsigned long long* size, unsigned long long index, unsigned long long tablestrloc, bool createscan, bool linkscan)
 {
 	unsigned long long hash = 0;
 	char* Filename = vmalloc(filenamelen + 1);
@@ -182,6 +183,7 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 	(*dict)[i].hash = hash;
 	(*dict)[i].filenameloc = filenameloc;
 	(*dict)[i].index = index;
+	(*dict)[i].tablestrloc = tablestrloc;
 	if (taken)
 	{
 		(*dict)[i].pdict = tdict;

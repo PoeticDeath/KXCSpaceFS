@@ -55,7 +55,8 @@ static int kxcspacefs_getfrag_block(struct inode* inode, sector_t fragment, stru
 
     down_read(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
-    unsigned long long loc = get_strloc(index, KMCSFS);
+    unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+    unsigned long long loc = get_strloc(index, dindex, KMCSFS);
 
 	bool notzero = false;
 	bool multisector = false;
@@ -190,7 +191,8 @@ static int kxcspacefs_open(struct inode* inode, struct file* filp)
     if ((wronly || rdwr) && trunc && inode->i_size)
     {
         UNICODE_STRING* fn = inode->i_private;
-        dealloc(KMCSFS, get_filename_index(*fn, KMCSFS), inode->i_size, 0);
+        unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+        dealloc(KMCSFS, get_filename_index(*fn, KMCSFS), inode->i_size, 0, dindex);
         /* Update inode metadata */
         inode->i_size = 0;
         inode->i_blocks = 0;
@@ -221,7 +223,8 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
     }
 
     UNICODE_STRING* fn = inode->i_private;
-    bytes_read = read_file(sb->s_bdev, KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read);
+    unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+    bytes_read = read_file(sb->s_bdev, KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read, dindex);
     up_read(KMCSFS->op_lock);
     if (!bytes_read)
     {
@@ -248,9 +251,10 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
     unsigned long long plen = pos + len;
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
+    unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
     if (plen > inode->i_size)
     {
-        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
+        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size, dindex))
         {
             inode->i_size = plen;
             inode->i_blocks = (inode->i_size + 511) / 512;
@@ -262,7 +266,7 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
         }
     }
 
-    bytes_write = write_file(sb->s_bdev, KMCSFS, buf, pos, len, index, inode->i_size, &bytes_to_write, false);
+    bytes_write = write_file(sb->s_bdev, KMCSFS, buf, pos, len, index, inode->i_size, &bytes_to_write, dindex, false);
     if (!bytes_write)
     {
         /* successfully wrote data */
@@ -454,7 +458,8 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
     if (plen > inode->i_size)
     {
         unsigned long long index = get_filename_index(*fn, KMCSFS);
-        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
+        unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size, dindex))
         {
             inode->i_size = plen;
             inode->i_blocks = (inode->i_size + 511) / 512;
@@ -677,7 +682,8 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
     if (plen > inode->i_size)
     {
         unsigned long long index = get_filename_index(*fn, KMCSFS);
-        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size))
+        unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+        if (find_block(sb->s_bdev, KMCSFS, index, plen - inode->i_size, dindex))
         {
             inode->i_size = plen;
             inode->i_blocks = (inode->i_size + 511) / 512;
