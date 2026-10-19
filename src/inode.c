@@ -172,7 +172,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     {
         unsigned long long bytes_read = 0;
         char buf[sizeof(dev_t)] = {0};
-        read_file(sb->s_bdev, KMCSFS, buf, 0, sizeof(dev_t), index, &bytes_read, dindex);
+        read_file(sb->s_bdev, KMCSFS, buf, 0, sizeof(dev_t), index, &bytes_read, dindex, NULL);
         memmove(&inode->i_rdev, buf, sizeof(dev_t));
         init_special_inode(inode, inode->i_mode, inode->i_rdev);
     }
@@ -964,7 +964,7 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     
     unsigned long long bytes_read = 0;
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
-    int ret = read_file(sb->s_bdev, KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read, dindex);
+    int ret = read_file(sb->s_bdev, KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read, dindex, NULL);
     up_read(KMCSFS->op_lock);
     if (IS_ERR(ERR_PTR(ret)))
     {

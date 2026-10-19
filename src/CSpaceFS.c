@@ -539,17 +539,36 @@ unsigned long long get_file_size(unsigned long long index, unsigned long long di
 	return filesize;
 }
 
-int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read, unsigned long long dindex)
+unsigned long long acquire_readlock(KMCSpaceFS* KMCSFS)
+{
+	while (true)
+	{
+		for (unsigned long long i = 0; i < KMCSFS->readlockcount; i++)
+		{
+    		if (down_write_trylock(&KMCSFS->readlocks[i].readbuflock))
+			{
+        		return i;
+    		}
+		}
+	}
+}
+
+int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read, unsigned long long dindex, readlocks* readlock)
 {
 	unsigned long long loc = get_strloc(index, dindex, KMCSFS);
 
+	uint8_t* buf = NULL;
 	bool locked = false;
-	uint8_t* buf = NULL;//kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
-	if (!buf)
+	unsigned long long lock = 0;
+	if (!readlock)
 	{
+		lock = acquire_readlock(KMCSFS);
 		locked = true;
-		down_write(KMCSFS->readbuflock);
-		buf = KMCSFS->readbuf;
+		buf = KMCSFS->readlocks[lock].readbuf;
+	}
+	else
+	{
+		buf = readlock->readbuf;
 	}
 
 	bool init = true;
@@ -688,11 +707,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsi
 			{
 				if (locked)
 				{
-					up_write(KMCSFS->readbuflock);
-				}
-				else
-				{
-					kfree(buf);
+					up_write(&KMCSFS->readlocks[lock].readbuflock);
 				}
 				return 0;
 			}
@@ -751,11 +766,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsi
 	}
 	if (locked)
 	{
-		up_write(KMCSFS->readbuflock);
-	}
-	else
-	{
-		kfree(buf);
+		up_write(&KMCSFS->readlocks[lock].readbuflock);
 	}
 	return 0;
 }

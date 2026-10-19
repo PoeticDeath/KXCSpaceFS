@@ -201,7 +201,7 @@ static int kxcspacefs_open(struct inode* inode, struct file* filp)
     return 0;
 }
 
-static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, loff_t* ppos)
+static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, loff_t* ppos, readlocks* readlock)
 {
     struct inode* inode = file_inode(file);
     struct super_block* sb = inode->i_sb;
@@ -224,7 +224,7 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
 
     UNICODE_STRING* fn = inode->i_private;
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
-    bytes_read = read_file(sb->s_bdev, KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read, dindex);
+    bytes_read = read_file(sb->s_bdev, KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read, dindex, readlock);
     up_read(KMCSFS->op_lock);
     if (!bytes_read)
     {
@@ -236,6 +236,17 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
     *ppos = pos;
 
     return bytes_read;
+}
+
+static ssize_t kxcspacefs_read_lock(struct file* file, char __user* buf, size_t len, loff_t* ppos)
+{
+    struct inode* inode = file_inode(file);
+    struct super_block* sb = inode->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+    unsigned long long lock = acquire_readlock(KMCSFS);
+    ssize_t ret = kxcspacefs_read(file, buf, len, ppos, &KMCSFS->readlocks[lock]);
+    up_write(&KMCSFS->readlocks[lock].readbuflock);
+    return ret;
 }
 
 ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, loff_t* ppos)
@@ -320,14 +331,9 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
         }
 
         size_t len = max(pagesrem, 1) * PAGE_SIZE;
-        char* buf = vmalloc(len);
-        if (!buf)
-        {
-            pr_err("out of memory\n");
-            folio_unlock(folio);
-            return -ENOMEM;
-        }
-        kxcspacefs_read(file, buf, len, &pos);
+        unsigned long long lock = acquire_readlock(KMCSFS);
+        char* buf = KMCSFS->readlocks[lock].readmembuf;
+        kxcspacefs_read(file, buf, len, &pos, &KMCSFS->readlocks[lock]);
 
         if (pagesrem)
         {
@@ -356,7 +362,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
             }
         }
 
-        vfree(buf);
+        up_write(&KMCSFS->readlocks[lock].readbuflock);
     }
     folio_unlock(folio);
     return folio_size(folio);
@@ -481,7 +487,7 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
         if ((toff != pos) || (len < PAGE_SIZE))
         {
             kxcspacefs_sync_fs(sb, 1);
-            kxcspacefs_read(kiocb->ki_filp, bh->b_data, PAGE_SIZE, &toff);
+            kxcspacefs_read_lock(kiocb->ki_filp, bh->b_data, PAGE_SIZE, &toff);
         }
     }
     return 0;
@@ -724,7 +730,7 @@ const struct file_operations kxcspacefs_file_ops =
     .read_iter = generic_file_read_iter,
     .write_iter = kxcspacefs_file_write_iter,
 #else
-    .read = kxcspacefs_read,
+    .read = kxcspacefs_read_lock,
     .write = kxcspacefs_write,
 #endif
 #if KXCSPACEFS_AT_LEAST(6, 17, 0)

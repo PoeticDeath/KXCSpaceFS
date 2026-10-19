@@ -22,6 +22,13 @@ typedef struct
 
 typedef struct
 {
+	unsigned char* readbuf;
+	unsigned char* readmembuf;
+	struct rw_semaphore readbuflock;
+} readlocks;
+
+typedef struct
+{
 	KMCSpaceFS_UUID uuid;
 	unsigned long sectorsize;
 	unsigned long long tablesize;
@@ -37,8 +44,8 @@ typedef struct
 	unsigned long long CurDictSize;
 	unsigned long long DictSize;
 	Dict* dict;
-	unsigned char* readbuf;
-	struct rw_semaphore* readbuflock;
+	readlocks* readlocks;
+	unsigned long long readlockcount;
 	unsigned char* writebuf;
 	struct rw_semaphore* op_lock;
 	unsigned char* findblockbuf;
@@ -60,7 +67,8 @@ unsigned long chwinattrs(unsigned long long filenameindex, unsigned long winattr
 unsigned toint(unsigned char c);
 unsigned long long get_strloc(unsigned long long index, unsigned long long dindex, KMCSpaceFS* KMCSFS);
 unsigned long long get_file_size(unsigned long long index, unsigned long long dindex, KMCSpaceFS* KMCSFS);
-int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read, unsigned long long dindex);
+unsigned long long acquire_readlock(KMCSpaceFS* KMCSFS);
+int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long* bytes_read, unsigned long long dindex, readlocks* readlock);
 int write_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsigned long long start, unsigned long long length, unsigned long long index, unsigned long long size, unsigned long long* bytes_written, unsigned long long dindex, bool kern);
 int create_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, UNICODE_STRING fn, unsigned long gid, unsigned long uid, unsigned long mode, unsigned long long time);
 void dealloc(KMCSpaceFS* KMCSFS, unsigned long long index, unsigned long long size, unsigned long long newsize, unsigned long long dindex);

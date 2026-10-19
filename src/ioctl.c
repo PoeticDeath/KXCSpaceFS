@@ -22,7 +22,7 @@ static int ioctl_getlabel(struct file* file, char* __user user_label)
 	unsigned long long index = get_filename_index(fn, KMCSFS);
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn.Buffer, fn.Length);
     unsigned long long bytes_read = 0;
-    read_file(sb->s_bdev, KMCSFS, label, 0, get_file_size(index, dindex, KMCSFS), index, &bytes_read, dindex);
+    read_file(sb->s_bdev, KMCSFS, label, 0, get_file_size(index, dindex, KMCSFS), index, &bytes_read, dindex, NULL);
     up_read(KMCSFS->op_lock);
 
 	if (copy_to_user(user_label, label, sizeof(label)))
