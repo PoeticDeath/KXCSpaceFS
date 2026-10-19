@@ -377,6 +377,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
     unsigned long long buflen = 0;
     unsigned long long bufstartpos = 0;
     unsigned long long buflastpos = 0;
+    KMCSpaceFS* KMCSFS = NULL;
 	int error = 0;
 	blk_start_plug(&plug);
 	while ((folio = writeback_iter(mapping, wbc, folio, &error)))
@@ -385,7 +386,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
         {
             file.f_inode = folio_inode(folio);
             struct super_block* sb = file.f_inode->i_sb;
-            KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+            KMCSFS = KXCSPACEFS_SB(sb);
             char* nbuf = kmap_local_folio(folio, 0);
             loff_t pos = folio_pos(folio);
             size_t len = folio_size(folio);
@@ -401,15 +402,8 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             up_read(KMCSFS->op_lock);
             if (!buf)
             {
-                buf = vmalloc(KMCSFS->sectorsize);
-                if (!buf)
-                {
-                    pr_err("out of memory\n");
-                    kunmap_local(nbuf);
-                    folio_unlock(folio);
-                    blk_finish_plug(&plug);
-                    return -ENOMEM;
-                }
+                down_write(&KMCSFS->writebuflock);
+                buf = KMCSFS->writemembuf;
                 bufstartpos = pos;
                 buflastpos = pos;
             }
@@ -439,7 +433,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
     if (buf)
     {
         kxcspacefs_write(&file, buf, buflen, &bufstartpos);
-        vfree(buf);
+        up_write(&KMCSFS->writebuflock);
     }
 	blk_finish_plug(&plug);
 	return error;

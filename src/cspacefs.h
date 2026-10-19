@@ -47,6 +47,8 @@ typedef struct
 	readlocks* readlocks;
 	unsigned long long readlockcount;
 	unsigned char* writebuf;
+	unsigned char* writemembuf;
+	struct rw_semaphore writebuflock;
 	struct rw_semaphore* op_lock;
 	unsigned char* findblockbuf;
 } KMCSpaceFS;

@@ -53,6 +53,7 @@ static void kxcspacefs_put_super(struct super_block* sb)
 		vfree(KMCSFS->dict);
 		kxcspacefs_freereadlocks(KMCSFS->readlocks, KMCSFS->readlockcount);
 		kfree(KMCSFS->writebuf);
+		vfree(KMCSFS->writemembuf);
         vfree(KMCSFS->op_lock);
 		kfree(KMCSFS->findblockbuf);
         vfree(KMCSFS);
@@ -294,6 +295,18 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 				found = false;
 				goto free_kmcsfs_table;
 			}
+			KMCSFS->writemembuf = vmalloc(KMCSFS->sectorsize);
+			if (!KMCSFS->writemembuf)
+			{
+				pr_err("out of memory\n");
+				vfree(KMCSFS->tablestr);
+				vfree(KMCSFS->dict);
+				kfree(KMCSFS->writebuf);
+				kxcspacefs_freereadlocks(KMCSFS->readlocks, KMCSFS->readlockcount);
+				found = false;
+				goto free_kmcsfs_table;
+			}
+			init_rwsem(&KMCSFS->writebuflock);
             KMCSFS->op_lock = vmalloc(sizeof(struct rw_semaphore));
 			if (!KMCSFS->op_lock)
 			{
@@ -302,6 +315,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 				vfree(KMCSFS->dict);
 				kxcspacefs_freereadlocks(KMCSFS->readlocks, KMCSFS->readlockcount);
 				kfree(KMCSFS->writebuf);
+				vfree(KMCSFS->writemembuf);
 				found = false;
 				goto free_kmcsfs_table;
 			}
@@ -314,6 +328,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 				vfree(KMCSFS->dict);
 				kxcspacefs_freereadlocks(KMCSFS->readlocks, KMCSFS->readlockcount);
 				kfree(KMCSFS->writebuf);
+				vfree(KMCSFS->writemembuf);
 				vfree(KMCSFS->op_lock);
 				found = false;
 				goto free_kmcsfs_table;
@@ -367,6 +382,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 			vfree(KMCSFS->dict);
 			kxcspacefs_freereadlocks(KMCSFS->readlocks, KMCSFS->readlockcount);
 			kfree(KMCSFS->writebuf);
+			vfree(KMCSFS->writemembuf);
             vfree(KMCSFS->op_lock);
 			kfree(KMCSFS->findblockbuf);
             ret = -ENOMEM;
@@ -400,6 +416,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 		vfree(KMCSFS->dict);
 		kxcspacefs_freereadlocks(KMCSFS->readlocks, KMCSFS->readlockcount);
 		kfree(KMCSFS->writebuf);
+		vfree(KMCSFS->writemembuf);
         vfree(KMCSFS->op_lock);
 		kfree(KMCSFS->findblockbuf);
         ret = PTR_ERR(root_inode);
@@ -422,6 +439,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 		vfree(KMCSFS->dict);
 		kxcspacefs_freereadlocks(KMCSFS->readlocks, KMCSFS->readlockcount);
 		kfree(KMCSFS->writebuf);
+		vfree(KMCSFS->writemembuf);
         vfree(KMCSFS->op_lock);
 		kfree(KMCSFS->findblockbuf);
         ret = -ENOMEM;
