@@ -697,6 +697,11 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
         }
 	}
 
+    if (iattr->ia_valid)
+    {
+        setattr_copy(id, inode, iattr);
+    }
+
     up_write(KMCSFS->op_lock);
 
 	return ret;
