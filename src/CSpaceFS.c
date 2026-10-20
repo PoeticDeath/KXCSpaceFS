@@ -220,7 +220,7 @@ unsigned long long get_filename_index(UNICODE_STRING FileName, KMCSpaceFS* KMCSF
 		return KMCSFS->dict[dindex].index;
 	}
 
-	unsigned j = 0;
+	/*unsigned j = 0;
 	bool found = false;
 	bool start = true;
 	for (unsigned long long i = 0; i < KMCSFS->filecount + 1; i++)
@@ -268,7 +268,7 @@ unsigned long long get_filename_index(UNICODE_STRING FileName, KMCSpaceFS* KMCSF
 				j++;
 			}
 		}
-	}
+	}*/
 	return 0;
 }
 

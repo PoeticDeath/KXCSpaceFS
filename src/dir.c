@@ -122,12 +122,16 @@ int kxcspacefs_iterate_unlocked(struct file* dir, struct dir_context* ctx)
             rfn.Length = filenamelen;
 			if (ctx)
 			{
-            	if (!dir_emit(ctx, rfn.Buffer + (fn->Length > sizeof(WCHAR) ? fn->Length : 0) + 1, rfn.Length - (fn->Length > sizeof(WCHAR) ? fn->Length : 0) - sizeof(WCHAR), kxcspacefs_iget(sb, 0, &rfn)->i_ino, DT_UNKNOWN))
-            	{
-                	ret = 1;
-                	break;
-            	}
-            	ctx->pos++;
+				struct inode* tmpinode = kxcspacefs_iget(sb, 0, &rfn);
+				if (virt_addr_valid(tmpinode))
+				{
+            		if (!dir_emit(ctx, rfn.Buffer + (fn->Length > sizeof(WCHAR) ? fn->Length : 0) + 1, rfn.Length - (fn->Length > sizeof(WCHAR) ? fn->Length : 0) - sizeof(WCHAR), tmpinode->i_ino, DT_UNKNOWN))
+            		{
+                		ret = 1;
+                		break;
+            		}
+            		ctx->pos++;
+				}
 			}
 			else
 			{
