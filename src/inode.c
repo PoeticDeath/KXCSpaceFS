@@ -393,7 +393,7 @@ static int kxcspacefs_unlink_unlocked(struct inode* dir, struct dentry* dentry)
             }
             if (!filenamechanged)
             {
-                bool canchange = fn_iter.fn.Length == fn.Length;
+                bool canchange = fn_iter.fn.Length != fn.Length;
                 if (!canchange)
                 {
                     for (unsigned long long i = 0; i < fn_iter.fn.Length; i++)
