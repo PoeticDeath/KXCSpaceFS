@@ -541,12 +541,14 @@ unsigned long long get_file_size(unsigned long long index, unsigned long long di
 
 unsigned long long acquire_readlock(KMCSpaceFS* KMCSFS)
 {
+	down_write(&KMCSFS->readlocks_lock);
 	while (true)
 	{
 		for (unsigned long long i = 0; i < KMCSFS->readlockcount; i++)
 		{
     		if (down_write_trylock(&KMCSFS->readlocks[i].readbuflock))
 			{
+				up_write(&KMCSFS->readlocks_lock);
         		return i;
     		}
 		}

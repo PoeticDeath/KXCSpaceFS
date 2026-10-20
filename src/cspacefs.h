@@ -46,6 +46,7 @@ typedef struct
 	Dict* dict;
 	readlocks* readlocks;
 	unsigned long long readlockcount;
+	struct rw_semaphore readlocks_lock;
 	unsigned char* writebuf;
 	unsigned char* writemembuf;
 	struct rw_semaphore writebuflock;

@@ -285,6 +285,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 				}
 				init_rwsem(&KMCSFS->readlocks[i].readbuflock);
 			}
+			init_rwsem(&KMCSFS->readlocks_lock);
 			KMCSFS->writebuf = kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
 			if (!KMCSFS->writebuf)
 			{
