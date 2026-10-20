@@ -83,7 +83,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     }
 
     /* Get a locked inode from Linux */
-    inode = iget_locked(sb, KMCSFS->dict[dindex].hash);
+    inode = new_inode(sb);
     if (!inode)
     {
         pr_err("out of memory\n");
@@ -114,6 +114,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         inode->i_private = ofn;
         inode->i_ino = KMCSFS->dict[dindex].hash;
     }
+    insert_inode_hash(inode);
 
     inode->i_sb = sb;
     inode->i_op = &kxcspacefs_inode_ops;
