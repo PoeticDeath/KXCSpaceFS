@@ -97,6 +97,24 @@ static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
     return 0;
 }
 
+static int kxcspacefs_drop_inode(struct inode* inode)
+{
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
+    UNICODE_STRING* fn = inode->i_private;
+    if (fn)
+	{
+		if (fn->Buffer)
+		{
+        	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+        	if (KMCSFS->dict[dindex].inode == inode)
+			{
+            	KMCSFS->dict[dindex].inode = NULL;
+        	}
+		}
+    }
+    return inode_generic_drop(inode);
+}
+
 static void kxcspacefs_evict_inode(struct inode* inode)
 {
 	filemap_write_and_wait(&inode->i_data);
@@ -121,6 +139,7 @@ static struct super_operations kxcspacefs_super_ops =
     .sync_fs = kxcspacefs_sync_fs,
     .statfs = kxcspacefs_statfs,
 	.evict_inode = kxcspacefs_evict_inode,
+	.drop_inode = kxcspacefs_drop_inode,
 };
 
 /* Fill the struct superblock from partition superblock */
