@@ -97,11 +97,21 @@ static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
     return 0;
 }
 
+#define RWSEM_READER_OWNED	(1UL << 0)
+#define RWSEM_NONSPINNABLE	(1UL << 1)
+#define RWSEM_OWNER_FLAGS_MASK	(RWSEM_READER_OWNED | RWSEM_NONSPINNABLE)
+
+struct task_struct* rwsem_owner(struct rw_semaphore* sem)
+{
+	return (struct task_struct*)(atomic_long_read(&sem->owner) & ~RWSEM_OWNER_FLAGS_MASK);
+}
+
 static int kxcspacefs_drop_inode(struct inode* inode)
 {
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
     UNICODE_STRING* fn = inode->i_private;
-	while (true)
+	bool locked = rwsem_owner(KMCSFS->op_lock) != current;
+	while (locked)
 	{
 		if (down_write_trylock(KMCSFS->op_lock))
 		{
@@ -119,7 +129,10 @@ static int kxcspacefs_drop_inode(struct inode* inode)
         	}
 		}
     }
-	up_write(KMCSFS->op_lock);
+	if (locked)
+	{
+		up_write(KMCSFS->op_lock);
+	}
     return inode_generic_drop(inode);
 }
 
@@ -195,7 +208,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
         ret = -ENOMEM;
         goto free_kmcsfs;
     }
-	char* tmp = kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
+	char* tmp = kzalloc(KMCSFS->sectorsize, GFP_KERNEL | GFP_NOFS);
 	if (!tmp)
 	{
 		pr_err("out of memory\n");
@@ -290,7 +303,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 			}
 			for (unsigned long long i = 0; i < KMCSFS->readlockcount; i++)
 			{
-				KMCSFS->readlocks[i].readbuf = kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
+				KMCSFS->readlocks[i].readbuf = kzalloc(KMCSFS->sectorsize, GFP_KERNEL | GFP_NOFS);
 				if (!KMCSFS->readlocks[i].readbuf)
 				{
 					pr_err("out of memory\n");
@@ -313,7 +326,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 				init_rwsem(&KMCSFS->readlocks[i].readbuflock);
 			}
 			init_rwsem(&KMCSFS->readlocks_lock);
-			KMCSFS->writebuf = kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
+			KMCSFS->writebuf = kzalloc(KMCSFS->sectorsize, GFP_KERNEL | GFP_NOFS);
 			if (!KMCSFS->writebuf)
 			{
 				pr_err("out of memory\n");
@@ -348,7 +361,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 				goto free_kmcsfs_table;
 			}
             init_rwsem(KMCSFS->op_lock);
-			KMCSFS->findblockbuf = kzalloc(KMCSFS->sectorsize, GFP_KERNEL);
+			KMCSFS->findblockbuf = kzalloc(KMCSFS->sectorsize, GFP_KERNEL | GFP_NOFS);
 			if (!KMCSFS->findblockbuf)
 			{
 				pr_err("out of memory\n");

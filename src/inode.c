@@ -958,6 +958,12 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     UNICODE_STRING* fn;
     fn = inode->i_private;
+
+    if (!dentry)
+    {
+        return ERR_PTR(-ECHILD);
+    }
+
     down_read(KMCSFS->op_lock);
     uint8_t* data = kzalloc(inode->i_size + 1, GFP_USER);
     if (!data)
@@ -977,6 +983,8 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
         kfree(data);
         return ERR_PTR(ret);
     }
+
+    set_delayed_call(done, kfree_link, data);
 
     return data;
 }
