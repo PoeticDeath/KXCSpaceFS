@@ -365,7 +365,7 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
         up_write(&KMCSFS->readlocks[lock].readbuflock);
     }
     folio_unlock(folio);
-    return folio_size(folio);
+    return 0;
 }
 
 static int kxcspacefs_writepages(struct address_space* mapping, struct writeback_control* wbc)
@@ -444,6 +444,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
 static int kxcspacefs_write_begin(const struct kiocb* kiocb, struct address_space* mapping, loff_t pos, unsigned len, struct folio** foliop, void** fsdata)
 {
     struct inode* inode = file_inode(kiocb->ki_filp);
+    struct file* file = kiocb->ki_filp;
 #elif KXCSPACEFS_AT_LEAST(6, 12, 0)
 static int kxcspacefs_write_begin(struct file* file, struct address_space* mapping, loff_t pos, unsigned len, struct folio** foliop, void** fsdata)
 {
@@ -480,8 +481,7 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
         loff_t toff = pos - pos % PAGE_SIZE;
         if ((toff != pos) || (len < PAGE_SIZE))
         {
-            kxcspacefs_sync_fs(sb, 1);
-            kxcspacefs_read_lock(kiocb->ki_filp, bh->b_data, PAGE_SIZE, &toff);
+            kxcspacefs_read_lock(file, bh->b_data, PAGE_SIZE, &toff);
         }
     }
     return 0;

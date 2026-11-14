@@ -42,6 +42,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
             {
                 if (KMCSFS->dict[dindex].inode)
                 {
+                    ihold(KMCSFS->dict[dindex].inode);
                     return KMCSFS->dict[dindex].inode;
                 }
                 nlink = get_link_count(KMCSFS, fn);
@@ -79,7 +80,7 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     if (index >= KMCSFS->filecount || !index)
     {
         //pr_err("not in range or not in fs\n");
-        return 0;
+        return ERR_PTR(-ENOENT);
     }
 
     /* Get a locked inode from Linux */
@@ -114,7 +115,6 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         inode->i_private = ofn;
         inode->i_ino = KMCSFS->dict[dindex].hash;
     }
-    insert_inode_hash(inode);
 
     inode->i_sb = sb;
     inode->i_op = &kxcspacefs_inode_ops;
@@ -158,17 +158,6 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         inode->i_op = &symlink_inode_ops;
     }
 
-    /* Unlock the inode to make it usable, if not found in cache */
-#if KXCSPACEFS_AT_LEAST(7, 0, 0)
-    if (inode->i_state.__state & I_NEW)
-#else
-    if (inode->i_state & I_NEW)
-#endif
-    {
-        ihold(inode);
-        unlock_new_inode(inode);
-    }
-
     if (S_ISCHR(inode->i_mode) | S_ISBLK(inode->i_mode) | S_ISFIFO(inode->i_mode))
     {
         unsigned long long bytes_read = 0;
@@ -178,9 +167,20 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
         init_special_inode(inode, inode->i_mode, inode->i_rdev);
     }
 
-    if (dindex)
+    /* Unlock the inode to make it usable, if not found in cache */
+#if KXCSPACEFS_AT_LEAST(7, 0, 0)
+    if (inode->i_state.__state & I_NEW)
+#else
+    if (inode->i_state & I_NEW)
+#endif
     {
-        KMCSFS->dict[dindex].inode = inode;
+        ihold(inode);
+        unlock_new_inode(inode);
+        if (dindex)
+        {
+            KMCSFS->dict[dindex].inode = inode;
+        }
+        insert_inode_hash(inode);
     }
 
     return inode;
@@ -223,21 +223,26 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
     down_read(KMCSFS->op_lock);
     inode = kxcspacefs_iget(sb, 0, &fn);
-    up_read(KMCSFS->op_lock);
     vfree(fn.Buffer);
     if (IS_ERR(inode))
     {
-        return (void*)inode;
+        up_read(KMCSFS->op_lock);
+        if (PTR_ERR(inode) == -ENOENT)
+        {
+            d_add(dentry, NULL);
+            return NULL;
+        }
+        return ERR_CAST(inode);
     }
+    /* Fill the dentry with the inode */
+    d_add(dentry, inode);
+    up_read(KMCSFS->op_lock);
 
     down_write(KMCSFS->op_lock);
     unsigned long long time = current_time(dir).tv_sec;
     chtime(get_filename_index(*pfn, KMCSFS), time, 1, KMCSFS);
     dir->i_atime_sec = time;
     up_write(KMCSFS->op_lock);
-
-    /* Fill the dentry with the inode */
-    d_add(dentry, inode);
 
     return NULL;
 }
@@ -550,9 +555,10 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     memmove(nfn.Buffer + (newdir->Length > sizeof(WCHAR) ? newdir->Length : 0) + 1, new_dentry->d_name.name, new_dentry->d_name.len);
 
     /* Fail if new_dentry exists */
-    ret = PTR_ERR(kxcspacefs_iget(sb, 0, &nfn));
-    if (ret)
+    struct inode* target_inode = kxcspacefs_iget(sb, 0, &nfn);
+    if (!IS_ERR(target_inode))
     {
+        iput(target_inode);
         if (flags & RENAME_NOREPLACE)
         {
             vfree(oldfn.Buffer);
@@ -941,8 +947,10 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     else
     {
         delete_file(sb->s_bdev, KMCSFS, fn, index);
+        KMCSFS->dict[dindex].inode = NULL;
         up_write(KMCSFS->op_lock);
         vfree(fn.Buffer);
+        iput(inode);
         return -ENOSPC;
     }
     write_file(sb->s_bdev, KMCSFS, symname, 0, l, index, inode->i_size, &bytes_written, dindex, true);
@@ -965,7 +973,7 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     }
 
     down_read(KMCSFS->op_lock);
-    uint8_t* data = kzalloc(inode->i_size + 1, GFP_USER);
+    uint8_t* data = kzalloc(inode->i_size + 1, GFP_USER | GFP_NOFS);
     if (!data)
     {
         pr_err("out of memory\n");
@@ -998,7 +1006,7 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     UNICODE_STRING fn;
 
     down_read(KMCSFS->op_lock);
-    if (get_link_count(KMCSFS, target) == 1 << 32 - 1)
+    if (get_link_count(KMCSFS, target) == U32_MAX)
     {
         up_read(KMCSFS->op_lock);
         return -EMLINK;
