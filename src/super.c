@@ -109,14 +109,14 @@ static int kxcspacefs_drop_inode(struct inode* inode)
 {
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
     UNICODE_STRING* fn = inode->i_private;
-	bool locked = rwsem_owner(KMCSFS->op_lock) != current;
-	while (locked)
-	{
-		if (down_write_trylock(KMCSFS->op_lock))
-		{
-			break;
-		}
-	}
+	//bool locked = rwsem_owner(KMCSFS->op_lock) != current;
+	//while (locked)
+	//{
+	//	if (down_write_trylock(KMCSFS->op_lock))
+	//	{
+	//		break;
+	//	}
+	//}
     if (fn)
 	{
 		if (fn->Buffer)
@@ -128,10 +128,10 @@ static int kxcspacefs_drop_inode(struct inode* inode)
         	}
 		}
     }
-	if (locked)
-	{
-		up_write(KMCSFS->op_lock);
-	}
+	//if (locked)
+	//{
+	//	up_write(KMCSFS->op_lock);
+	//}
     return inode_generic_drop(inode);
 }
 
