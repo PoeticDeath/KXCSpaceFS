@@ -87,7 +87,22 @@ startover:
 bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, unsigned long long filenamelen, unsigned long long* cursize, unsigned long long* size, unsigned long long index, unsigned long long tablestrloc, bool createscan, bool linkscan)
 {
 	unsigned long long hash = 0;
-	char Filename[KXCSPACEFS_FILENAME_LEN + 1] = { 0 };
+	char* Filename = NULL;
+	bool alloc = false;
+	if (filenamelen > KXCSPACEFS_FILENAME_LEN)
+	{
+		Filename = vmalloc(filenamelen + 1);
+		if (!Filename)
+		{
+			return false;
+		}
+		alloc = true;
+	}
+	else
+	{
+		char Filenamebuf[KXCSPACEFS_FILENAME_LEN + 1] = { 0 };
+		Filename = Filenamebuf;
+	}
 	for (unsigned long long i = 0; i < filenamelen; i++)
 	{
 		Filename[i] = filename[i] & 0xff;
@@ -101,6 +116,10 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 		}*/
 	}
 	sha3_HashBuffer(256, 0, Filename, filenamelen, &hash, 8);
+	if (alloc)
+	{
+		vfree(Filename);
+	}
 	unsigned long long i = hash % *size;
 	if (!i)
 	{
@@ -199,7 +218,22 @@ bool AddDictEntry(Dict** dict, char* filename, unsigned long long filenameloc, u
 
 unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tableend, unsigned long long size, char* filename, unsigned long long filenamelen)
 {
-	char Filename[KXCSPACEFS_FILENAME_LEN + 1] = { 0 };
+	char* Filename = NULL;
+	bool alloc = false;
+	if (filenamelen > KXCSPACEFS_FILENAME_LEN)
+	{
+		Filename = vmalloc(filenamelen + 1);
+		if (!Filename)
+		{
+			return 0;
+		}
+		alloc = true;
+	}
+	else
+	{
+		char Filenamebuf[KXCSPACEFS_FILENAME_LEN + 1] = { 0 };
+		Filename = Filenamebuf;
+	}
 	for (unsigned long long i = 0; i < filenamelen; i++)
 	{
 		Filename[i] = filename[i] & 0xff;
@@ -223,10 +257,18 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 	{
 		if (o > size - 1)
 		{
+			if (alloc)
+			{
+				vfree(Filename);
+			}
 			return 0;
 		}
 		if (!dict[o].filenameloc)
 		{
+			if (alloc)
+			{
+				vfree(Filename);
+			}
 			return 0;
 		}
 		for (unsigned long long j = 0; j < filenamelen; j++)
@@ -244,6 +286,10 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 			}
 			if (j == filenamelen - 1 && ((table[tableend + dict[o].filenameloc + j + 1] & 0xff) == 255 || (table[tableend + dict[o].filenameloc + j + 1] & 0xff) == 42) && dict[o].hash == hash)
 			{
+				if (alloc)
+				{
+					vfree(Filename);
+				}
 				return o;
 			}
 		}
@@ -253,6 +299,10 @@ unsigned long long FindDictEntry(Dict* dict, char* table, unsigned long long tab
 		}
 		else
 		{
+			if (alloc)
+			{
+				vfree(Filename);
+			}
 			return 0;
 		}
 	}
