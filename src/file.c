@@ -368,6 +368,84 @@ static int kxcspacefs_read_folio(struct file* file, struct folio* folio)
     return 0;
 }
 
+static void kxcspacefs_readahead(struct readahead_control* ractl)
+{
+    struct file* file = ractl->file;
+    struct inode* inode = ractl->mapping->host;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
+    struct folio* folio;
+
+    unsigned long long lock = acquire_readlock(KMCSFS);
+    char* buf = KMCSFS->readlocks[lock].readmembuf;
+
+    /* Allocate a small array on stack or dynamically to track folios in the current batch */
+    unsigned long max_pages = KMCSFS->sectorsize / PAGE_SIZE;
+    struct folio** folios = kvmalloc_array(max_pages, sizeof(struct folio*), GFP_NOFS);
+    if (!folios)
+    {
+        up_write(&KMCSFS->readlocks[lock].readbuflock);
+        return; /* VFS will automatically clean up and fall back to read_folio */
+    }
+
+    while ((folio = readahead_folio(ractl)))
+    {
+        loff_t start_pos = folio_pos(folio);
+        size_t total_len = folio_size(folio);
+        unsigned long count = 0;
+
+        folios[count++] = folio;
+
+        /* Batch consecutive folios up to KMCSFS->sectorsize */
+        while (count < max_pages && total_len < KMCSFS->sectorsize)
+        {
+            struct folio *next = readahead_folio(ractl);
+            if (!next)
+            {
+                break;
+            }
+
+            folios[count++] = next;
+            total_len += folio_size(next);
+        }
+
+        /* Read the entire batched chunk in one call */
+        loff_t pos = start_pos;
+        ssize_t bytes_read = kxcspacefs_read(file, buf, total_len, &pos, &KMCSFS->readlocks[lock]);
+
+        /* Distribute data into the batched folios and unlock them */
+        size_t offset = 0;
+        for (unsigned long i = 0; i < count; i++)
+        {
+            struct folio* f = folios[i];
+            size_t flen = folio_size(f);
+
+            if (bytes_read > offset)
+            {
+                size_t copy_len = min_t(size_t, flen, bytes_read - offset);
+                char *nbuf = kmap_local_folio(f, 0);
+
+                memmove(nbuf, buf + offset, copy_len);
+                /* Zero-fill any trailing bytes if we hit EOF mid-folio */
+                if (copy_len < flen)
+                {
+                    memset(nbuf + copy_len, 0, flen - copy_len);
+                }
+
+                kunmap_local(nbuf);
+
+                folio_mark_uptodate(f);
+                folio_buffers_set_uptodate(f);
+            }
+            /* Note: If bytes_read <= offset (error/EOF), we leave it not-uptodate */
+            folio_unlock(f);
+            offset += flen;
+        }
+    }
+
+    kvfree(folios);
+    up_write(&KMCSFS->readlocks[lock].readbuflock);
+}
+
 static int kxcspacefs_writepages(struct address_space* mapping, struct writeback_control* wbc)
 {
     struct file file;
@@ -708,6 +786,7 @@ int kxcspacefs_release(struct inode* inode, struct file* file)
 const struct address_space_operations kxcspacefs_aops =
 {
 	.read_folio = kxcspacefs_read_folio,
+    .readahead = kxcspacefs_readahead,
 	.writepages = kxcspacefs_writepages,
     .write_begin = kxcspacefs_write_begin,
 	.write_end = kxcspacefs_write_end,
