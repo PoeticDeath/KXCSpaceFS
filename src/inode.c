@@ -176,12 +176,13 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
     {
         ihold(inode);
         unlock_new_inode(inode);
-        if (dindex)
-        {
-            KMCSFS->dict[dindex].inode = inode;
-        }
-        insert_inode_hash(inode);
     }
+
+    if (dindex)
+    {
+        KMCSFS->dict[dindex].inode = inode;
+    }
+    insert_inode_hash(inode);
 
     return inode;
 

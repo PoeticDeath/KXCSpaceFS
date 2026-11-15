@@ -384,7 +384,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 	    unsigned char* filename = vmalloc(65536);
 	    if (filename)
 	    {
-		    for (unsigned long long i = KMCSFS->tableend + 1; i < KMCSFS->filenamesend; i++)
+		    for (unsigned long long i = KMCSFS->tableend + 1; i < KMCSFS->filenamesend + 1; i++)
 		    {
 			    if ((KMCSFS->table[i] & 0xff) == 255)
 			    {
