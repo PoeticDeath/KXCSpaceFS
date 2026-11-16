@@ -18,12 +18,14 @@ static int ioctl_getlabel(struct file* file, char* __user user_label)
     char name = ':';
     fn.Buffer = &name;
     fn.Length = sizeof(WCHAR);
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_read(KMCSFS->op_lock);
 	unsigned long long index = get_filename_index(fn, KMCSFS);
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn.Buffer, fn.Length);
     unsigned long long bytes_read = 0;
     read_file(sb->s_bdev, KMCSFS, label, 0, get_file_size(index, dindex, KMCSFS), index, &bytes_read, dindex, NULL);
     up_read(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
 	if (copy_to_user(user_label, label, sizeof(label)))
     {
@@ -66,6 +68,7 @@ static int ioctl_setlabel(struct file* file, const char* __user user_label)
     char name = ':';
     fn.Buffer = &name;
     fn.Length = sizeof(WCHAR);
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
 	unsigned long long index = get_filename_index(fn, KMCSFS);
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn.Buffer, fn.Length);
@@ -78,6 +81,7 @@ static int ioctl_setlabel(struct file* file, const char* __user user_label)
             if (!find_block(sb->s_bdev, KMCSFS, index, len - size, dindex))
             {
                 up_write(KMCSFS->op_lock);
+                memalloc_nofs_restore(nofs_flags);
                 return -ENOSPC;
             }
         }
@@ -89,6 +93,7 @@ static int ioctl_setlabel(struct file* file, const char* __user user_label)
                 if (!find_block(sb->s_bdev, KMCSFS, index, len % KMCSFS->sectorsize, dindex))
                 {
                     up_write(KMCSFS->op_lock);
+                    memalloc_nofs_restore(nofs_flags);
                     return -ENOSPC;
                 }
             }
@@ -96,6 +101,7 @@ static int ioctl_setlabel(struct file* file, const char* __user user_label)
     }
     write_file(sb->s_bdev, KMCSFS, new_label, 0, len, index, get_file_size(index, dindex, KMCSFS), &bytes_written, dindex, true);
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
 	return 0;
 }

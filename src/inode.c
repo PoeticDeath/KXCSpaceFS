@@ -42,8 +42,10 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
             {
                 if (KMCSFS->dict[dindex].inode)
                 {
-                    ihold(KMCSFS->dict[dindex].inode);
-                    return KMCSFS->dict[dindex].inode;
+                    if (igrab(KMCSFS->dict[dindex].inode))
+                    {
+                        return KMCSFS->dict[dindex].inode;
+                    }
                 }
                 nlink = get_link_count(KMCSFS, fn);
                 if (nlink > 1)
@@ -61,9 +63,11 @@ struct inode* kxcspacefs_iget(struct super_block* sb, unsigned long long index, 
                         struct inode* i = KMCSFS->dict[ndindex].inode;
                         if (i)
                         {
-                            ihold(i);
-                            KMCSFS->dict[dindex].inode = i;
-                            break;
+                            if (igrab(i))
+                            {
+                                KMCSFS->dict[dindex].inode = i;
+                                break;
+                            }
                         }
                     }
                     if (KMCSFS->dict[dindex].inode)
@@ -222,12 +226,14 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     memmove(fn.Buffer, pfn->Buffer, pfn->Length);
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_read(KMCSFS->op_lock);
     inode = kxcspacefs_iget(sb, 0, &fn);
     vfree(fn.Buffer);
     if (IS_ERR(inode))
     {
         up_read(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
         if (PTR_ERR(inode) == -ENOENT)
         {
             d_add(dentry, NULL);
@@ -244,6 +250,7 @@ static struct dentry* kxcspacefs_lookup(struct inode* dir, struct dentry* dentry
     chtime(get_filename_index(*pfn, KMCSFS), time, 1, KMCSFS);
     dir->i_atime_sec = time;
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
     return NULL;
 }
@@ -337,6 +344,7 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
         return -ENAMETOOLONG;
     }
 
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
 
     /* Get a new free inode */
@@ -348,12 +356,14 @@ static int kxcspacefs_create(struct inode* dir, struct dentry* dentry, umode_t m
     if (IS_ERR(inode))
     {
         up_write(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
         return PTR_ERR(inode);
     }
 
     /* setup dentry */
     d_instantiate(dentry, inode);
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
     return 0;
 }
@@ -455,9 +465,11 @@ static int kxcspacefs_unlink(struct inode* dir, struct dentry* dentry)
     struct super_block* sb = dir->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
     int ret = kxcspacefs_unlink_unlocked(dir, dentry->d_inode, &dentry->d_name);
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
     return ret;
 }
@@ -478,9 +490,11 @@ static int kxcspacefs_rmdir(struct inode* dir, struct dentry* dentry)
     struct super_block* sb = dir->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
     int ret = kxcspacefs_rmdir_unlocked(dir, dentry->d_inode, &dentry->d_name);
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
     return ret;
 }
@@ -524,11 +538,13 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
     oldfn.Buffer[olddir->Length > sizeof(WCHAR) ? olddir->Length : 0] = '/';
     memmove(oldfn.Buffer + (olddir->Length > sizeof(WCHAR) ? olddir->Length : 0) + 1, old_dentry->d_name.name, old_dentry->d_name.len);
 
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
     if (!get_filename_index(oldfn, KMCSFS))
     {
         vfree(oldfn.Buffer);
         up_write(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
         return -ENOENT;
     }
 
@@ -544,6 +560,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
         pr_err("out of memory\n");
         vfree(oldfn.Buffer);
         up_write(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
         return -ENOMEM;
     }
     memmove(nfn.Buffer, newdir->Buffer, newdir->Length);
@@ -560,6 +577,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
             vfree(oldfn.Buffer);
             vfree(nfn.Buffer);
             up_write(KMCSFS->op_lock);
+            memalloc_nofs_restore(nofs_flags);
             return -EEXIST;
         }
         else
@@ -578,6 +596,7 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
                 vfree(oldfn.Buffer);
                 vfree(nfn.Buffer);
                 up_write(KMCSFS->op_lock);
+                memalloc_nofs_restore(nofs_flags);
                 return ret;
             }
         }
@@ -607,12 +626,14 @@ static int kxcspacefs_rename(struct inode* old_dir, struct dentry* old_dentry, s
         new_dir->i_atime_sec = time;
         new_dir->i_mtime_sec = time;
         up_write(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
     }
     else
     {
         vfree(oldfn.Buffer);
         vfree(nfn.Buffer);
         up_write(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
     }
     return ret;
 }
@@ -630,6 +651,7 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
 		return ret;
     }
 
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
@@ -669,6 +691,7 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
         if (iattr->ia_size > KMCSFS->size)
         {
             up_write(KMCSFS->op_lock);
+            memalloc_nofs_restore(nofs_flags);
             return -EFBIG;
         }
 
@@ -680,6 +703,7 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
                 if (!find_block(sb->s_bdev, KMCSFS, index, iattr->ia_size - size, dindex))
                 {
                     up_write(KMCSFS->op_lock);
+                    memalloc_nofs_restore(nofs_flags);
                     return -ENOSPC;
                 }
             }
@@ -691,6 +715,7 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
                     if (!find_block(sb->s_bdev, KMCSFS, index, iattr->ia_size % KMCSFS->sectorsize, dindex))
                     {
                         up_write(KMCSFS->op_lock);
+                        memalloc_nofs_restore(nofs_flags);
                         return -ENOSPC;
                     }
                 }
@@ -706,6 +731,7 @@ static int kxcspacefs_setattr(struct mnt_idmap* id, struct dentry* dentry, struc
     }
 
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
 	return ret;
 }
@@ -721,6 +747,7 @@ static int kxcspacefs_fiemap(struct inode* inode, struct fiemap_extent_info* fie
         return ret;
     }
 
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_read(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
@@ -828,6 +855,7 @@ static int kxcspacefs_fiemap(struct inode* inode, struct fiemap_extent_info* fie
 		}
 	}
     up_read(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
     return ret;
 }
@@ -843,6 +871,7 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
     }
 
     UNICODE_STRING* fn = dentry->d_inode->i_private;
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
@@ -861,6 +890,7 @@ static int kxcspacefs_mknod(struct mnt_idmap* id, struct inode* dir, struct dent
         ret = -ENOSPC;
     }
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
     init_special_inode(dentry->d_inode, mode, dev);
     return ret;
 }
@@ -918,6 +948,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
 
     #if KXCSPACEFS_AT_LEAST(6, 3, 0)
@@ -929,6 +960,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     {
         vfree(fn.Buffer);
         up_write(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
         return PTR_ERR(inode);
     }
 
@@ -945,6 +977,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
         delete_file(sb->s_bdev, KMCSFS, fn, index);
         KMCSFS->dict[dindex].inode = NULL;
         up_write(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
         vfree(fn.Buffer);
         iput(inode);
         return -ENOSPC;
@@ -952,6 +985,7 @@ static int kxcspacefs_symlink(struct inode* dir, struct dentry* dentry, const ch
     write_file(sb->s_bdev, KMCSFS, symname, 0, l, index, inode->i_size, &bytes_written, dindex, true);
     d_instantiate(dentry, inode);
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
     vfree(fn.Buffer);
     return 0;
 }
@@ -968,12 +1002,14 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
         return ERR_PTR(-ECHILD);
     }
 
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_read(KMCSFS->op_lock);
     uint8_t* data = kzalloc(inode->i_size + 1, GFP_USER | GFP_NOFS);
     if (!data)
     {
         pr_err("out of memory\n");
         up_read(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
         return ERR_PTR(-ENOMEM);
     }
     memset(data, 0, inode->i_size + 1);
@@ -982,6 +1018,7 @@ static const char* kxcspacefs_get_link(struct dentry* dentry, struct inode* inod
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
     int ret = read_file(sb->s_bdev, KMCSFS, data, 0, inode->i_size, get_filename_index(*fn, KMCSFS), &bytes_read, dindex, NULL);
     up_read(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
     if (IS_ERR(ERR_PTR(ret)))
     {
         kfree(data);
@@ -1001,13 +1038,16 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     UNICODE_STRING* pfn = dir->i_private;
     UNICODE_STRING fn;
 
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_read(KMCSFS->op_lock);
     if (get_link_count(KMCSFS, target) == U32_MAX)
     {
         up_read(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
         return -EMLINK;
     }
     up_read(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
     fn.Length = pfn->Length + (pfn->Length > sizeof(WCHAR) ? sizeof(WCHAR) : 0) + dentry->d_name.len;
     fn.Buffer = vmalloc(fn.Length);
@@ -1020,6 +1060,7 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     fn.Buffer[pfn->Length > sizeof(WCHAR) ? pfn->Length : 0] = '/';
     memmove(fn.Buffer + (pfn->Length > sizeof(WCHAR) ? pfn->Length : 0) + 1, dentry->d_name.name, dentry->d_name.len);
 
+    nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
     int ret = make_link(KMCSFS, target, fn);
     
@@ -1027,6 +1068,7 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     {
         vfree(fn.Buffer);
         up_write(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
         return ret;
     }
 
@@ -1035,6 +1077,7 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     if (IS_ERR(inode))
     {
         up_write(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
         return PTR_ERR(inode);
     }
 
@@ -1048,6 +1091,7 @@ static int kxcspacefs_link(struct dentry* old_dentry, struct inode* dir, struct 
     set_nlink(inode, nlink);
     d_instantiate(dentry, inode);
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
     return ret;
 }

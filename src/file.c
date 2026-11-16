@@ -53,6 +53,7 @@ static int kxcspacefs_getfrag_block(struct inode* inode, sector_t fragment, stru
     unsigned long long phys = 0;
     fragment *= 512;
 
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_read(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
@@ -161,6 +162,7 @@ static int kxcspacefs_getfrag_block(struct inode* inode, sector_t fragment, stru
 		}
 	}
     up_read(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
     if (phys)
     {
@@ -187,6 +189,7 @@ static int kxcspacefs_open(struct inode* inode, struct file* filp)
     bool trunc = (filp->f_flags & O_TRUNC);
 
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
     if ((wronly || rdwr) && trunc && inode->i_size)
     {
@@ -198,6 +201,7 @@ static int kxcspacefs_open(struct inode* inode, struct file* filp)
         inode->i_blocks = 0;
     }
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
     return 0;
 }
 
@@ -210,10 +214,12 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
     ssize_t bytes_read = 0;
     loff_t pos = *ppos;
 
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_read(KMCSFS->op_lock);
     if (pos >= inode->i_size)
     {
         up_read(KMCSFS->op_lock);
+        memalloc_nofs_restore(nofs_flags);
         return 0;
     }
 
@@ -226,6 +232,7 @@ static ssize_t kxcspacefs_read(struct file* file, char __user* buf, size_t len, 
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
     bytes_read = read_file(sb->s_bdev, KMCSFS, buf, pos, len, get_filename_index(*fn, KMCSFS), &bytes_to_read, dindex, readlock);
     up_read(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
     if (!bytes_read)
     {
         /* successfully read data */
@@ -260,6 +267,7 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
     loff_t pos = *ppos;
 
     unsigned long long plen = pos + len;
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
     unsigned long long index = get_filename_index(*fn, KMCSFS);
     unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
@@ -273,6 +281,7 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
         else
         {
             up_write(KMCSFS->op_lock);
+            memalloc_nofs_restore(nofs_flags);
             return -ENOSPC;
         }
     }
@@ -291,6 +300,7 @@ ssize_t kxcspacefs_write(struct file* file, const char __user* buf, size_t len, 
     chtime(index, time, 3, KMCSFS);
     inode->i_mtime_sec = time;
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
     return bytes_write;
 }
@@ -455,6 +465,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
     unsigned long long buflen = 0;
     unsigned long long bufstartpos = 0;
     unsigned long long buflastpos = 0;
+    unsigned int nofs_flags = 0;
     KMCSpaceFS* KMCSFS = NULL;
 	int error = 0;
 	blk_start_plug(&plug);
@@ -468,6 +479,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
             char* nbuf = kmap_local_folio(folio, 0);
             loff_t pos = folio_pos(folio);
             size_t len = folio_size(folio);
+            nofs_flags = memalloc_nofs_save();
             down_read(KMCSFS->op_lock);
             if (pos + len > folio_inode(folio)->i_size)
             {
@@ -478,8 +490,10 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
                 len = 0;
             }
             up_read(KMCSFS->op_lock);
+            memalloc_nofs_restore(nofs_flags);
             if (!buf)
             {
+                nofs_flags = memalloc_nofs_save();
                 down_write(&KMCSFS->writebuflock);
                 buf = KMCSFS->writemembuf;
                 bufstartpos = pos;
@@ -512,6 +526,7 @@ static int kxcspacefs_writepages(struct address_space* mapping, struct writeback
     {
         kxcspacefs_write(&file, buf, buflen, &bufstartpos);
         up_write(&KMCSFS->writebuflock);
+        memalloc_nofs_restore(nofs_flags);
     }
 	blk_finish_plug(&plug);
 	return error;
@@ -533,6 +548,7 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
     UNICODE_STRING* fn = inode->i_private;
 
     unsigned long long plen = pos + len;
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
     if (plen > inode->i_size)
     {
@@ -546,10 +562,12 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
         else
         {
             up_write(KMCSFS->op_lock);
+            memalloc_nofs_restore(nofs_flags);
             return -ENOSPC;
         }
     }
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
 	*foliop = __filemap_get_folio(mapping, pos / PAGE_SIZE, FGP_WRITEBEGIN, mapping_gfp_mask(mapping));
     struct buffer_head* bh = folio_buffers(*foliop);
@@ -756,6 +774,7 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
         return -EFBIG;
     }
     
+    unsigned int nofs_flags = memalloc_nofs_save();
     down_write(KMCSFS->op_lock);
     if (plen > inode->i_size)
     {
@@ -769,10 +788,12 @@ long kxcspacefs_fallocate(struct file* file, int mode, loff_t offset, loff_t len
         else
         {
             up_write(KMCSFS->op_lock);
+            memalloc_nofs_restore(nofs_flags);
             return -ENOSPC;
         }
     }
     up_write(KMCSFS->op_lock);
+    memalloc_nofs_restore(nofs_flags);
 
     return inode->i_size;
 }

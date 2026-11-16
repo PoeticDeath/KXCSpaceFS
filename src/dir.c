@@ -152,9 +152,11 @@ int kxcspacefs_iterate(struct file* dir, struct dir_context* ctx)
 	struct super_block* sb = dir->f_inode->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
+	unsigned int nofs_flags = memalloc_nofs_save();
 	down_read(KMCSFS->op_lock);
 	int ret = kxcspacefs_iterate_unlocked(dir, ctx);
 	up_read(KMCSFS->op_lock);
+	memalloc_nofs_restore(nofs_flags);
 
 	return ret;
 }

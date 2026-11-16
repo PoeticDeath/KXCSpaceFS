@@ -64,12 +64,14 @@ int kxcspacefs_sync_fs(struct super_block* sb, int wait)
 {
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
 
+	unsigned int nofs_flags = memalloc_nofs_save();
 	down_read(KMCSFS->op_lock);
 	for (unsigned long long i = 0; i < KMCSFS->extratablesize; i += KMCSFS->sectorsize)
 	{
 		sync_write_phys(i, KMCSFS->sectorsize, KMCSFS->table + i, sb->s_bdev, KMCSFS);
 	}
 	up_read(KMCSFS->op_lock);
+	memalloc_nofs_restore(nofs_flags);
 
 	sync_blockdev(sb->s_bdev);
 
@@ -84,9 +86,11 @@ static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
     stat->f_type = 0xCCAACCEF;
     stat->f_bsize = KMCSFS->sectorsize;
     stat->f_blocks = KMCSFS->size / KMCSFS->sectorsize;
+	unsigned int nofs_flags = memalloc_nofs_save();
     down_read(KMCSFS->op_lock);
     find_block(sb->s_bdev, KMCSFS, 0, 0, 0);
     up_read(KMCSFS->op_lock);
+	memalloc_nofs_restore(nofs_flags);
     stat->f_bfree = stat->f_blocks - KMCSFS->used_blocks;
     stat->f_bavail = stat->f_blocks - KMCSFS->used_blocks;
     stat->f_files = KMCSFS->filecount;
@@ -96,47 +100,9 @@ static int kxcspacefs_statfs(struct dentry* dentry, struct kstatfs* stat)
     return 0;
 }
 
-#define RWSEM_READER_OWNED	(1UL << 0)
-#define RWSEM_NONSPINNABLE	(1UL << 1)
-#define RWSEM_OWNER_FLAGS_MASK	(RWSEM_READER_OWNED | RWSEM_NONSPINNABLE)
-
-struct task_struct* rwsem_owner(struct rw_semaphore* sem)
-{
-	return (struct task_struct*)(atomic_long_read(&sem->owner) & ~RWSEM_OWNER_FLAGS_MASK);
-}
-
-static int kxcspacefs_drop_inode(struct inode* inode)
-{
-    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
-    UNICODE_STRING* fn = inode->i_private;
-	//bool locked = rwsem_owner(KMCSFS->op_lock) != current;
-	//while (locked)
-	//{
-	//	if (down_write_trylock(KMCSFS->op_lock))
-	//	{
-	//		break;
-	//	}
-	//}
-    if (fn)
-	{
-		if (fn->Buffer)
-		{
-        	unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
-        	if (KMCSFS->dict[dindex].inode == inode)
-			{
-            	KMCSFS->dict[dindex].inode = NULL;
-        	}
-		}
-    }
-	//if (locked)
-	//{
-	//	up_write(KMCSFS->op_lock);
-	//}
-    return inode_generic_drop(inode);
-}
-
 static void kxcspacefs_evict_inode(struct inode* inode)
 {
+	KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(inode->i_sb);
 	filemap_write_and_wait(&inode->i_data);
 	truncate_inode_pages_final(&inode->i_data);
 	UNICODE_STRING* fn = inode->i_private;
@@ -144,6 +110,15 @@ static void kxcspacefs_evict_inode(struct inode* inode)
 	{
 		if (fn->Buffer)
 		{
+			unsigned int nofs_flags = memalloc_nofs_save();
+			down_write(KMCSFS->op_lock);
+			unsigned long long dindex = FindDictEntry(KMCSFS->dict, KMCSFS->table, KMCSFS->tableend, KMCSFS->DictSize, fn->Buffer, fn->Length);
+        	if (KMCSFS->dict[dindex].inode == inode)
+			{
+            	KMCSFS->dict[dindex].inode = NULL;
+        	}
+			up_write(KMCSFS->op_lock);
+			memalloc_nofs_restore(nofs_flags);
 			vfree(fn->Buffer);
 			fn->Buffer = NULL;
 		}
@@ -159,7 +134,6 @@ static struct super_operations kxcspacefs_super_ops =
     .sync_fs = kxcspacefs_sync_fs,
     .statfs = kxcspacefs_statfs,
 	.evict_inode = kxcspacefs_evict_inode,
-	.drop_inode = kxcspacefs_drop_inode,
 };
 
 /* Fill the struct superblock from partition superblock */
@@ -446,9 +420,11 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
     UNICODE_STRING root_fn;
     root_fn.Length = sizeof(WCHAR);
     root_fn.Buffer = &name;
+	unsigned int nofs_flags = memalloc_nofs_save();
 	down_read(KMCSFS->op_lock);
     root_inode = kxcspacefs_iget(sb, 0, &root_fn);
 	up_read(KMCSFS->op_lock);
+	memalloc_nofs_restore(nofs_flags);
     if (IS_ERR(root_inode))
     {
         pr_err("out of memory\n");

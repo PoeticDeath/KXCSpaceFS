@@ -562,8 +562,10 @@ int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsi
 	uint8_t* buf = NULL;
 	bool locked = false;
 	unsigned long long lock = 0;
+	unsigned int nofs_flags = 0;
 	if (!readlock)
 	{
+		nofs_flags = memalloc_nofs_save();
 		lock = acquire_readlock(KMCSFS);
 		locked = true;
 		buf = KMCSFS->readlocks[lock].readbuf;
@@ -710,6 +712,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsi
 				if (locked)
 				{
 					up_write(&KMCSFS->readlocks[lock].readbuflock);
+					memalloc_nofs_restore(nofs_flags);
 				}
 				return 0;
 			}
@@ -769,6 +772,7 @@ int read_file(struct block_device* bdev, KMCSpaceFS* KMCSFS, uint8_t* data, unsi
 	if (locked)
 	{
 		up_write(&KMCSFS->readlocks[lock].readbuflock);
+		memalloc_nofs_restore(nofs_flags);
 	}
 	return 0;
 }
