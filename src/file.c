@@ -456,124 +456,77 @@ static void kxcspacefs_readahead(struct readahead_control* ractl)
     up_write(&KMCSFS->readlocks[lock].readbuflock);
 }
 
-static void kxcspacefs_flush_folio_batch(struct inode* inode, struct file* file, KMCSpaceFS* KMCSFS, struct folio** batch, unsigned int count, loff_t start_pos, size_t total_len)
-{
-    loff_t isize = i_size_read(inode);
-    size_t write_len = (start_pos >= isize) ? 0 : min_t(loff_t, total_len, isize - start_pos);
-
-    down_write(&KMCSFS->writebuflock);
-    memset(KMCSFS->writemembuf, 0, KMCSFS->sectorsize);
-
-    size_t offset = 0;
-    for (unsigned int i = 0; i < count; i++)
-    {
-        size_t flen = folio_size(batch[i]);
-        if (offset < write_len)
-        {
-            size_t copy_len = min_t(size_t, flen, write_len - offset);
-            char* nbuf = kmap_local_folio(batch[i], 0);
-            memmove(KMCSFS->writemembuf + offset, nbuf, copy_len);
-            kunmap_local(nbuf);
-        }
-        offset += flen;
-    }
-
-    if (write_len > 0)
-    {
-        loff_t wpos = start_pos;
-        kxcspacefs_write(file, KMCSFS->writemembuf, write_len, &wpos);
-    }
-    up_write(&KMCSFS->writebuflock);
-
-    for (unsigned int i = 0; i < count; i++)
-    {
-        folio_clear_dirty(batch[i]);
-        folio_buffers_clear_dirty(batch[i]);
-        folio_start_writeback(batch[i]);
-        folio_unlock(batch[i]);
-        folio_end_writeback(batch[i]);
-    }
-}
-
 static int kxcspacefs_writepages(struct address_space* mapping, struct writeback_control* wbc)
 {
-    struct inode* inode = mapping->host;
-    struct super_block* sb = inode->i_sb;
-    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
-    struct file file = { .f_inode = inode };
-    struct folio* single_folio = NULL;
+    struct file file;
     struct folio* folio = NULL;
-    struct blk_plug plug;
+	struct blk_plug plug;
+    char* buf = NULL;
+    unsigned long long buflen = 0;
+    unsigned long long bufstartpos = 0;
+    unsigned long long buflastpos = 0;
+    struct super_block* sb = mapping->host->i_sb;
+    KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
+	int error = 0;
     unsigned int nofs_flags = memalloc_nofs_save();
-    unsigned long long max_folios = KMCSFS->sectorsize / PAGE_SIZE;
-    struct folio** batch = vmalloc(max_folios * sizeof(struct folio*));
-    bool allocated = (batch != NULL);
-    int error = 0;
-
-    /* Fall back to 1-folio-at-a-time on stack if vmalloc fails during reclaim */
-    if (!batch)
-    {
-        batch = &single_folio;
-        max_folios = 1;
-    }
-
-    blk_start_plug(&plug);
-
-    while ((folio = writeback_iter(mapping, wbc, folio, &error)))
-    {
-        unsigned int count = 0;
-        loff_t start_pos = folio_pos(folio);
-        loff_t expected_next_pos = start_pos + folio_size(folio);
-        size_t total_len = folio_size(folio);
-
-        batch[count++] = folio;
-
-        /* Gather contiguous folios BEFORE acquiring writebuflock */
-        while (count < max_folios && total_len < KMCSFS->sectorsize)
+    down_write(&KMCSFS->writebuflock);
+	blk_start_plug(&plug);
+	while ((folio = writeback_iter(mapping, wbc, folio, &error)))
+	{
+        if (folio)
         {
-            struct folio* next = writeback_iter(mapping, wbc, folio, &error);
-            if (!next)
+            file.f_inode = folio_inode(folio);
+            char* nbuf = kmap_local_folio(folio, 0);
+            loff_t pos = folio_pos(folio);
+            size_t len = folio_size(folio);
+            down_read(KMCSFS->op_lock);
+            if (pos + len > folio_inode(folio)->i_size)
             {
-                folio = NULL;
-                break;
+                len = folio_inode(folio)->i_size - pos;
             }
-            folio = next;
-
-            /* If next folio is NOT contiguous, flush current batch first */
-            if (folio_pos(folio) != expected_next_pos)
+            if (pos > folio_inode(folio)->i_size)
             {
-                kxcspacefs_flush_folio_batch(inode, &file, KMCSFS, batch, count, start_pos, total_len);
-                count = 0;
-                start_pos = folio_pos(folio);
-                total_len = 0;
+                len = 0;
             }
-
-            batch[count++] = folio;
-            expected_next_pos = folio_pos(folio) + folio_size(folio);
-            total_len += folio_size(folio);
-        }
-
-        if (count > 0)
-        {
-            kxcspacefs_flush_folio_batch(inode, &file, KMCSFS, batch, count, start_pos, total_len);
-        }
-
-        if (!folio)
-        {
-            break;
+            up_read(KMCSFS->op_lock);
+            if (!buf)
+            {
+                buf = KMCSFS->writemembuf;
+                bufstartpos = pos;
+                buflastpos = pos;
+            }
+            else
+            {
+                if ((buflastpos != pos - folio_size(folio)) || (buflen >= KMCSFS->sectorsize))
+                {
+                    kxcspacefs_write(&file, buf, buflen, &bufstartpos);
+                    memset(buf, 0, KMCSFS->sectorsize);
+                    bufstartpos = pos;
+                    buflastpos = pos;
+                    buflen = 0;
+                }
+                else
+                {
+                    buflastpos = pos;
+                }
+            }
+            memmove(buf + buflen, nbuf, len);
+            buflen += len;
+            kunmap_local(nbuf);
+            folio_clear_dirty(folio);
+            folio_buffers_clear_dirty(folio);
+            folio_unlock(folio);
         }
     }
-
-    blk_finish_plug(&plug);
-    if (allocated)
+    if (buf)
     {
-        vfree(batch);
+        kxcspacefs_write(&file, buf, buflen, &bufstartpos);
     }
+	blk_finish_plug(&plug);
+    up_write(&KMCSFS->writebuflock);
     memalloc_nofs_restore(nofs_flags);
-    return error;
+	return error;
 }
-
-
 
 #if KXCSPACEFS_AT_LEAST(6, 17, 0)
 static int kxcspacefs_write_begin(const struct kiocb* kiocb, struct address_space* mapping, loff_t pos, unsigned len, struct folio** foliop, void** fsdata)
@@ -588,6 +541,12 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
     struct super_block* sb = inode->i_sb;
     KMCSpaceFS* KMCSFS = KXCSPACEFS_SB(sb);
     UNICODE_STRING* fn = inode->i_private;
+
+    *foliop = __filemap_get_folio(mapping, pos / PAGE_SIZE, FGP_WRITEBEGIN, mapping_gfp_mask(mapping));
+    if (IS_ERR(*foliop))
+    {
+        return PTR_ERR(*foliop);
+    }
 
     unsigned long long plen = pos + len;
     unsigned int nofs_flags = memalloc_nofs_save();
@@ -605,13 +564,14 @@ static int kxcspacefs_write_begin(struct file* file, struct address_space* mappi
         {
             up_write(KMCSFS->op_lock);
             memalloc_nofs_restore(nofs_flags);
+            folio_unlock(*foliop);
+            folio_put(*foliop);
             return -ENOSPC;
         }
     }
     up_write(KMCSFS->op_lock);
     memalloc_nofs_restore(nofs_flags);
 
-	*foliop = __filemap_get_folio(mapping, pos / PAGE_SIZE, FGP_WRITEBEGIN, mapping_gfp_mask(mapping));
     struct buffer_head* bh = folio_buffers(*foliop);
     if (!bh)
     {
