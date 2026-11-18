@@ -56,6 +56,7 @@ static void kxcspacefs_put_super(struct super_block* sb)
 		vfree(KMCSFS->writemembuf);
         vfree(KMCSFS->op_lock);
 		kfree(KMCSFS->findblockbuf);
+		vfree(KMCSFS->lowestsector);
         vfree(KMCSFS);
     }
 }
@@ -347,7 +348,21 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 				found = false;
 				goto free_kmcsfs_table;
 			}
-
+			KMCSFS->lowestsector = vmalloc(sizeof(unsigned long long*) * (KMCSFS->sectorsize - 1));
+			if (!KMCSFS->lowestsector)
+			{
+				pr_err("out of memory\n");
+				vfree(KMCSFS->tablestr);
+				vfree(KMCSFS->dict);
+				kxcspacefs_freereadlocks(KMCSFS->readlocks, KMCSFS->readlockcount);
+				kfree(KMCSFS->writebuf);
+				vfree(KMCSFS->writemembuf);
+				vfree(KMCSFS->op_lock);
+				kfree(KMCSFS->findblockbuf);
+				found = false;
+				goto free_kmcsfs_table;
+			}
+			memset(KMCSFS->lowestsector, 255, sizeof(unsigned long long*) * (KMCSFS->sectorsize - 1));
         }
     }
 
@@ -399,6 +414,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 			vfree(KMCSFS->writemembuf);
             vfree(KMCSFS->op_lock);
 			kfree(KMCSFS->findblockbuf);
+			vfree(KMCSFS->lowestsector);
             ret = -ENOMEM;
             goto free_kmcsfs_table;
         }
@@ -435,6 +451,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 		vfree(KMCSFS->writemembuf);
         vfree(KMCSFS->op_lock);
 		kfree(KMCSFS->findblockbuf);
+		vfree(KMCSFS->lowestsector);
         ret = PTR_ERR(root_inode);
         goto free_kmcsfs_table;
     }
@@ -458,6 +475,7 @@ int kxcspacefs_fill_super(struct super_block* sb, void* data, int silent)
 		vfree(KMCSFS->writemembuf);
         vfree(KMCSFS->op_lock);
 		kfree(KMCSFS->findblockbuf);
+		vfree(KMCSFS->lowestsector);
         ret = -ENOMEM;
         goto iput;
     }

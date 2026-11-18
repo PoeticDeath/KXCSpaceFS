@@ -52,6 +52,7 @@ typedef struct
 	struct rw_semaphore writebuflock;
 	struct rw_semaphore* op_lock;
 	unsigned char* findblockbuf;
+	unsigned long long* lowestsector;
 } KMCSpaceFS;
 
 extern unsigned* emap;
